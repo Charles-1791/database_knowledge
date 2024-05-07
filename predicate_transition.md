@@ -6,18 +6,20 @@ An execution plan is of tree structure; similar to the magma flow during volcani
 When a non-leaf tree node receives data from its child, it applies some manipulation over it, such as filter out some lines(Selection), 
 removing or adding extra columns(Projection), or matching rows between two children(Join). After that, the modified data is returned to its father node.
 The whole process is similar to the lava flow during volcanic eruption, data moves from below to above and when the root node returns, the output is send to the client as the query result.
-![image](https://github.com/Charles-1791/database_knowledge/assets/89259555/3148e37e-92f6-4831-bd81-443f4d7c790f)
-Usually, the execution plan derived from AST(raw plan) is just a verbtim translation of the query -- it yeilds the correct output but fails to take the execution time into account.
-Therefore, some optimizations can be apply to the raw plan to achieve faster execution while maintaning the correctness of the result, for instance, 
-join reordering, which changes the join order when more than two tables are joined together, or column pruning, which removes unused columns from the output of each
-tree node, in a way reducing the data transafering among nodes. Here i'd like to share my views on a common but crucial optimization method -- predicate transtition.
 
-Predication transtition is an advanced version of traditional predicate push down, a tranditional optimizing strategy pushing filter conditions, i.e. predicates, downtowards into
-to the leaf nodes.
+![image](https://github.com/Charles-1791/database_knowledge/assets/89259555/3148e37e-92f6-4831-bd81-443f4d7c790f)
+
+Usually, the execution plan derived from AST(raw plan) is just a verbatim translation of the query -- it yeilds the correct output but fails to take into account the execution cost.
+In fact, some optimization can be apply to the raw plan to achieve a shorter execution time while maintaning the correctness of the result, for instance, 
+join reordering, which changes the join order when more than two tables are joined together, or column pruning, which removes unused columns from the output of each
+tree node, in a way reducing the amount of data transaferred among nodes. Here i'd like to share my views on a common but crucial optimization method -- predicate transtition.
 
 ## Outline
-In this passage, i would firstly give a brief introduction of trandition predicate push down, and then the concept of predication transition.
+In this passage, i would firstly give a brief introduction of tranditional predicate push down, and then the concept of predication transition.
 After that, some selective plan nodes are introduced, on which we discuss how to perform predicate transition. Finally, some drawbacks and limitations are covered.
 
 ## Concept of Predicate Transition
+
+Predication transtition is an advanced version of traditional predicate push down, a tranditional optimizing strategy pushing filter conditions, i.e. predicates, downtowards into
+to the leaf nodes.
 Predicate pushdown must be introduced beforehand
