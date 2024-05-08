@@ -6,6 +6,7 @@ An execution plan is of tree structure; similar to the magma flow during volcani
 When a non-leaf tree node receives data from its child, it applies some manipulation over it, such as filter out some lines(Selection), 
 removing or adding extra columns(Projection), or matching rows between two children(Join). After that, the modified data is returned to its father node.
 The whole process is similar to the lava flow during volcanic eruption, data moves from below to above and when the root node returns, the output is send to the client as the query result.
+(By the way, stream execution is often used in the process to avoid load all data into main memory.)
 
 ![image](https://github.com/Charles-1791/database_knowledge/assets/89259555/3148e37e-92f6-4831-bd81-443f4d7c790f)
 
@@ -15,11 +16,37 @@ join reordering, which changes the join order when more than two tables are join
 tree node, in a way reducing the amount of data transaferred among nodes. Here i'd like to share my views on a common but crucial optimization method -- predicate transtition.
 
 ## Outline
-In this passage, i would firstly give a brief introduction of tranditional predicate push down, and then the concept of predication transition.
-After that, some selective plan nodes are introduced, on which we discuss how to perform predicate transition. Finally, some drawbacks and limitations are covered.
+In this passage, i would firstly give a brief introduction of tranditional predicate push down, and then switch to the concept of predication transition.
+After that, some execution plan nodes are introduced, on which we discuss how to perform predicate transition. Finally, some drawbacks and limitations are covered.
 
-## Concept of Predicate Transition
+## Predicate Pushdown and Transition
+Predicate pushdown aims to push predicates, i.e. filters or conditions, towards leaf nodes, so that data is filtered as early as possible. 
+The rationale is simple: less amount of data means less time spent on transfering data among nodes, and it reduce the pressure of memory. 
+
+Another remarkable advantange is that it preclude unnecessary computation:
+Suppose we have table t1 and t2 with the following definition:
+
+***t1***
+| a | b | c |
+| --- | --- | --- |
+| int | double | varchar |
+
+***t2***
+| d | e | f |
+| --- | --- | --- |
+| int | double | varchar |
+
+For query:
+> select a, b, d, e from t1 join t2 on a = d and b > 1.0 where f like 'abc%'
+
+the generated RAW plan should be like:
+![image](https://github.com/Charles-1791/database_knowledge/assets/89259555/d27055c7-876d-4f89-a4d2-75d144695625)
+
+Two table scan nodes retrieve data of t1 and t2 from disk and return to Join, the Join does a Cartesian Product over rows from its child(in fact, we could do a hash join) and keeps
+result meeting the condition a = d and b > 1.0. The join output is then returned to a Selection node(filter), and data not satifsfying 'f like abc%' is removed. What is left goes to the projection node,
+which only preserves columns a, c, d, e.
+
+If we push the predicates 'f like 'abc%'' and 'b > 1.0' to nodes below the Join, they may significantly reduce the returned rows and naturally decrease time needed for the join process. 
 
 Predication transtition is an advanced version of traditional predicate push down, a tranditional optimizing strategy pushing filter conditions, i.e. predicates, downtowards into
 to the leaf nodes.
-Predicate pushdown must be introduced beforehand
