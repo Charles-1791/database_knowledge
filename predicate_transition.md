@@ -40,6 +40,7 @@ For query:
 > select a, b, d, e from t1 join t2 on a = d and b > 1.0 where f like 'abc%'
 
 the generated RAW plan should be like:
+
 ![image](https://github.com/Charles-1791/database_knowledge/assets/89259555/d27055c7-876d-4f89-a4d2-75d144695625)
 
 Two table scan nodes retrieve data of t1 and t2 from disk and return to Join, the Join does a Cartesian Product over rows from its child(in fact, we could do a hash join) and keeps
