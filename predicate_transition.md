@@ -89,4 +89,10 @@ After labeling the column, the query:
 yields plan tree:
 ![image](https://github.com/Charles-1791/database_knowledge/assets/89259555/bb5ce754-eb0a-47da-94f8-6a6e80c57180)
 
+According to the input and output uids, one-child-noded can be classified into three catagories:
+- output uids are same as input uids. Those are Limit, Selection, Sort.
+- output contains possibly more uids than input uids(inputUids is a subset of outputUids). Those are TableScan, aggregation, windowFunction
+- output preserves some or no uids from input and add more or no uids to its output. Only Projection is in this category.
+
+
  
