@@ -19,7 +19,7 @@ tree node, in a way reducing the amount of data transaferred among nodes. Here i
 In this passage, i would firstly give a brief introduction of tranditional predicate push down, and then switch to the concept of predication transition.
 After that, some execution plan nodes are introduced, on which we discuss how to perform predicate transition. Finally, some drawbacks and limitations are covered.
 
-## Predicate Pushdown and Transition
+## Predicate Pushdown
 Predicate pushdown aims to push predicates, i.e. filters or conditions, towards leaf nodes, so that data is filtered as early as possible. 
 The rationale is simple: less amount of data means less time spent on transfering data among nodes, and it reduce the pressure of memory. 
 
@@ -37,17 +37,56 @@ Suppose we have table t1 and t2 with the following definition:
 | int | double | varchar |
 
 For query:
-> select a, b, d, e from t1 join t2 on a = d and b > 1.0 where f like 'abc%'
+> select a, b, d, e from t1 join t2 on b = d and b > 1.0 where f like 'abc%'
 
 the generated RAW plan should be like:
 
 ![image](https://github.com/Charles-1791/database_knowledge/assets/89259555/d27055c7-876d-4f89-a4d2-75d144695625)
 
 Two table scan nodes retrieve data of t1 and t2 from disk and return to Join, the Join does a Cartesian Product over rows from its child(in fact, we could do a hash join) and keeps
-result meeting the condition a = d and b > 1.0. The join output is then returned to a Selection node(filter), and data not satifsfying 'f like abc%' is removed. What is left goes to the projection node,
-which only preserves columns a, c, d, e.
+result meeting the condition b = d and b > 1.0. The join output is then returned to a Selection node(filter), and rows not satifsfying 'f like abc%' is removed. What is left goes to the projection node,
+where only columns a, c, d, e are preserved.
 
-If we push the predicates 'f like 'abc%'' and 'b > 1.0' to nodes below the Join, they may significantly reduce the returned rows and naturally decrease time needed for the join process. 
+If we push the predicates 'b > 1.0' and 'f like 'abc%'' to the left and right table scan nodes, the number of rows received by Join is significantly reduced, which decreases join's computing pressure. 
 
-Predication transtition is an advanced version of traditional predicate push down, a tranditional optimizing strategy pushing filter conditions, i.e. predicates, downtowards into
-to the leaf nodes.
+## Predicate Transition
+Predication transtition is an advanced version of traditional predicate push down. Apart from existing predicates, predicate transition derives new predicates and pushes them downwards. In addition, the newly deduced predicates may take the place of the original ones if they are favored by databases(considering indexes). 
+
+Revisit the previous example:
+
+> select a, b, d, e from t1 join t2 on b = d and b > 1.0 where f like 'abc%'
+
+Once we know b = d and b > 1.0, we instantly deduce d > 1.0, which can be pushed to table scan of t2.
+Our deduction is based on equivalent relationship(b = d), and this would be the only type of deduction covered in this passage.
+The more advance kinds of deductions are:
+
+- a > b and b > 0 so a > 0, (greater-than/less-than relationship is transitive)
+- max(a) < 10 so a < 10, (a <= max(a) < 10)
+- sum(a) < 10 and a > 0 so a < 10, (mathematics),
+...
+
+
+However, not all derived predicates are meaningful. Assuming the query looks like:
+
+> select a, b, d, e from t1 join t2 on b = d and b > 1.0 where b = a
+
+After seeing b = a, b > 1.0, we know a must also be greater than 1.0. Since column 'a' and 'b' are from the same table, the derived 'a > 1.0' only makes a difference if there is an index on column 'a'.
+Such predicates is worthless and slows down the query, in that it introduces needless computation.
+
+In a nut shell, predicates transition deduces new predicates from existing ones, 'expanding' the predicate set, and pushes them downwards. During the process, we should be cautious not to generate trivial predicates; sometimes we replace the existing predicates with newly derivations for better performance.
+
+## Implementation
+Different from the approach often adopted in papers, our goal is to 'deduce only when you have to' -- we do not generate predicates as much as possible(predicate closure), pushes all of them and eliminate redundancy; instead, we only deduce nontrivial and pushable predicates.
+
+In the following paragraphs, we would discuss what we should do at each plan node, but before that, let me introduce what a plan node actually is.
+
+### Plan node
+A plan node may have two, one or no children node; the leaf node generates data itself, while others receives data from its children. In optimization phase, there's no real data transferred, but each node is clear of the meta infos(column numbers, the name and type of each column) of the data it would receive and return in execution phase. Each column owns a global unique id to distinguish it from others; a tree node takes in some uids from its children, apply some changes over the data or filter out some rows, then it returns some uids.  
+
+After labeling the column, the query:
+> select a, b, d, e from t1 join t2 on b = d and b > 1.0 where f like 'abc%'
+
+yields plan tree:
+![image](https://github.com/Charles-1791/database_knowledge/assets/89259555/bb5ce754-eb0a-47da-94f8-6a6e80c57180)
+
+ 
