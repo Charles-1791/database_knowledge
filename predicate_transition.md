@@ -80,7 +80,7 @@ Different from the approach often adopted in papers, our goal is to 'deduce only
 
 In the following paragraphs, we would discuss what we should do at each plan node, but before that, let me introduce what a plan node actually is.
 
-### Plan node
+### Overviews of plan nodes
 A plan node may have two, one or no children node; the leaf node generates data itself, while others receives data from its children. In optimization phase, there's no real data transferred, but each node is clear of the meta infos(column numbers, the name and type of each column) of the data it would receive and return in execution phase. Each column owns a global unique id to distinguish it from others; a tree node takes in some uids from its children, apply some changes over the data or filter out some rows, then it returns some uids.  
 
 After labeling the column, the query:
@@ -90,9 +90,25 @@ yields plan tree:
 ![image](https://github.com/Charles-1791/database_knowledge/assets/89259555/bb5ce754-eb0a-47da-94f8-6a6e80c57180)
 
 According to the input and output uids, one-child-noded can be classified into three catagories:
-- output uids are same as input uids. Those are Limit, Selection, Sort.
-- output contains possibly more uids than input uids(inputUids is a subset of outputUids). Those are TableScan, aggregation, windowFunction
-- output preserves some or no uids from input and add more or no uids to its output. Only Projection is in this category.
+- output uids are same as input uids. (Limit, Selection, Sort.)
+- output contains possibly more uids than input uids(inputUids is a subset of outputUids). (Aggregation and WindowFunction)
+- output only preserves some or no uids from input and add more or no uids to its output. (Projection)
+
+node with two children 
+- output uids are the combinataion of uids of left and right child. (Join)
+- output uids are completely different from any uids from its children. (SetOperation such as. Union, Minus, Intersect...)
+
+### Two phases
+Predicate transition can be achieved through two phases of work -- predicate pullup and down.
+
+During the pullup phase, every node(except the table scan) receives from its child or children a 'PredicateSummary', which records the arithmatic relationship among the columns. The 'PredicateSummary' is processed in distinct manner according to the nature of the node, then the summary is returned to its father node, where further modifications are made. Similary to a bubble rises to the water surface, One by one, the summary ascends from the bottom to the top, aka. root of the plan tree.
+![image](https://github.com/Charles-1791/database_knowledge/assets/89259555/82d6e0ff-49a7-4d89-b259-f787f1542552)
+
+The push down phase ensues after the pull up phase ends, and the summary returned from the root is now carried down from root to leaves. When a summary goes through a node, its content changes and some predicates are generated, which stay there and never go down. Once a summary reaches the leaf node, i.e. the Table Scan node, it 'flattens' into predicates and they are attached to the TableScan.
+![image](https://github.com/Charles-1791/database_knowledge/assets/89259555/c6f90a55-02ab-445c-9847-fb59ee8c0c73)
+
+
+
 
 
  
