@@ -101,26 +101,47 @@ node with two children
 ### Two phases
 Predicate transition can be achieved through two phases of work -- predicate pullup and down.
 
-During the pullup phase, every node(except the table scan) receives from its child or children a 'PredicateSummary', which records the arithmatic relationship among the columns. The 'PredicateSummary' is processed in distinct manner according to the nature of the node, then the summary is returned to its father node, where further modifications are made. Similary to a bubble rises to the water surface, One by one, the summary ascends from the bottom to the top, aka. root of the plan tree.
+During the pullup phase, every node(except the table scan) receives from its child or children a 'PredicateSummary', which records the arithmatic relationship among the columns. The 'PredicateSummary' is processed in distinct manner according to the nature of the node, then returned to its father node, where further modifications are made. Similary to a bubble rising to the water surface, one by one, the 'PredicateSummary' ascends from the bottom to the top, aka. root of the plan tree.
 ![image](https://github.com/Charles-1791/database_knowledge/assets/89259555/82d6e0ff-49a7-4d89-b259-f787f1542552)
 
-The push down phase ensues after the pull up phase ends, and the summary returned from the root is now carried down from root to leaves. When a summary goes through a node, its content changes and some predicates are generated, which stay there and never go down. Once a summary reaches the leaf node, i.e. the Table Scan node, it 'flattens' into predicates and they are attached to the TableScan.
+The push down phase ensues after the pull up phase ends, and the summary returned from the root is now carried down from root to leaves. When a summary goes through a node, its content changes and some predicates may be generated, which stay there and won't go down. Once a summary reaches the leaf node, i.e. the Table Scan node, it 'flattens' into predicates and are attached to the TableScan.
 ![image](https://github.com/Charles-1791/database_knowledge/assets/89259555/c6f90a55-02ab-445c-9847-fb59ee8c0c73)
 
 
 ### Predicate Summary
+#### Structure
 A predicate constrains the arithmetic relationship among columns, for instance, predicate 'a > 0' add restriction to column a, predicate 'b < c' forces 'c' must be greater than 'b' in result. Another way to see predicates is to consider than as 'promises' or 'data feature', that is, a row won't appear in the result set unless it 'conforms to' all the predicates. 
 
 A predicate summary is a synthesis of multiple predicates, and it consists of two fundamental structures -- a set of all equivalent sets and a list of predicates.
 
 ```
 struct PredicateSummary{
-EquivalentRelation relations
-Expression []
-
+EqRelations relation
+Expression[] conditions
 }
 ```
+An equivalent set contains several equivalent columns, each of which equals to others. 
+After representing each column with a hash tag followed by a number (e.g., '#1'), an equivalent set can be expressed as:
 
+> {#1, #2, #3},
 
+which indicates 
+
+> #1 = #2 = #3
+
+The field 'relation' is a big set of equivalent sets, and can be expressed as:
+
+> {{#1, #2, #3}, {#4}, {#5, #6}, {#7}, {#8, #9}}
+
+and it means:
+
+> #1 = #2 = #3, #5 = #6, #8 = #9
+
+Besides the 'big set', relation also keeps a map maping uid to the index of equivalent set  
+
+Expression[] store's all predicates except for those having the form 'column1 = column2', which is considered an equivalent condition and should be recorded in 'relation'.
+
+#### Another interpretation of 'conditions'
+As discussed in the Structure section, conditions is a member of PredicateSummary and is an array of predicates.
 
  
