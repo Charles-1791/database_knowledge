@@ -120,7 +120,7 @@ EqRelations relation
 Expression[] conditions
 }
 ```
-An equivalent set contains several equivalent columns, each of which equals to others. 
+- An equivalent set contains several equivalent columns, each of which equals to others. 
 After representing each column with a hash tag followed by a number (e.g., '#1'), an equivalent set can be expressed as:
 
 > {#1, #2, #3},
@@ -137,11 +137,37 @@ and it means:
 
 > #1 = #2 = #3, #5 = #6, #8 = #9
 
-Besides the 'big set', relation also keeps a map maping uid to the index of equivalent set  
+'relation' also maintains a map mapping each UID to its corresponding set index within the array.
+For instance, a map looks like:
 
-Expression[] store's all predicates except for those having the form 'column1 = column2', which is considered an equivalent condition and should be recorded in 'relation'.
+| UID | set index |
+| --- | ---|
+| #1 | 0 |
+| #2 | 0 |
+| #3 | 0 |
+| #4 | 1 |
+| #5 | 2 |
+| #6 | 2 |
+| #7 | 3 |
+| #8 | 4 |
+| #9 | 4 |
 
-#### Another interpretation of 'conditions'
-As discussed in the Structure section, conditions is a member of PredicateSummary and is an array of predicates.
 
+- Expression[] store's all predicates except for those having the form 'column1 = column2', which should be recorded in 'relation'.
+
+#### Another interpretation of predicates
+A predicate in 'conditions' should be interpreted as 'a relation among equivalent sets', rather than 'a relation among columns'.
+Considering the following case:
+![image](https://github.com/Charles-1791/database_knowledge/assets/89259555/07754464-9f43-4be2-82d0-818edc837023)
+
+The purple block illstrates a 'relation', based on which the predicate
+
+> #1 + #2 - f(#4) * g(#5) = #8 + #9
  
+should be construed as a 'template'
+
+> $0 + $0 - f($1) * g($2) = $3 + $4
+
+where the $ sign can be viewed as placeholders - $0 stands for the first equivalent set, $1 is the 2nd equivalent set...
+In this way, a predicate reveals the arithmetic relations of equivalent sets, and if we replace the $ placeholder for a column within the corresponding set, a new(and valid) predicate is generated.
+
