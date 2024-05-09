@@ -108,6 +108,18 @@ The push down phase ensues after the pull up phase ends, and the summary returne
 ![image](https://github.com/Charles-1791/database_knowledge/assets/89259555/c6f90a55-02ab-445c-9847-fb59ee8c0c73)
 
 
+### Predicate Summary
+A predicate constrains the arithmetic relationship among columns, for instance, predicate 'a > 0' add restriction to column a, predicate 'b < c' forces 'c' must be greater than 'b' in result. Another way to see predicates is to consider than as 'promises' or 'data feature', that is, a row won't appear in the result set unless it 'conforms to' all the predicates. 
+
+A predicate summary is a synthesis of multiple predicates, and it consists of two fundamental structures -- a set of all equivalent sets and a list of predicates.
+
+```
+struct PredicateSummary{
+EquivalentRelation relations
+Expression []
+
+}
+```
 
 
 
