@@ -116,8 +116,8 @@ A predicate summary is a synthesis of multiple predicates, and it consists of tw
 
 ```
 struct PredicateSummary{
-EqRelations relations
-Expression[] conditions
+  EqRelations relations
+  Expression[] conditions
 }
 ```
 
@@ -175,6 +175,45 @@ In this way, a predicate in fact reveals the arithmetic relations among equivale
 Since the pullup and pushdown logic strongly correlate, the following content is structured in a pattern where each node is followed by its corresponding pullup and pushdown details.
 
 #### Table Scan
+##### Pull up
+A table scan node initially does not have any predicates, so the pull up logic is quite simple: create an empty summary and add all output uids into summary.relations and return the summary.
+
+##### Push down
+Table scan has no child, so all the data feature recorded in summary must be converted back into predicates. 
+Similar to stringing some pearls into a necklace, the process of flattening a 'relations' is using equation marks to connect each column, which can be expressed as:
+```
+for each equivalent set S in relations {
+  if |S| == 1 {
+    continue
+  }
+  for i:=1; i < S.size(); ++i {
+    generate predicate 'S[i-1] = S[i]'
+  }
+}
+```
+The logic behind is quite intuitive, since columns(uids) in an equivalent set equate to each other, we could pick the first element and create an equation connecting it with others. A quick example:
+
+> flatten(\[ {#1}, {#2, #3, #4}, {#5, #6} \]) = \[#2 = #3, #3 = #4, #5 = #6\]
 
 
+Since 'conditions' itself is an array of predicates which can be used directly, a better practice, nevertheless, would be converting them into new conditions more 'favored' by database through subsituting columns. As metioned above, a predicate reveals relations among equivalent sets; after replacing column with an  indexed(and equivalent) one, a new predicate usually outperforms the original one thanks to the more efficient index scan. The pseudocode is:
+
+```
+// we need relations to tell us the equivalent info
+func TryToConvert(const expression.Expr& predicate, const EqRelation& relations) (expression.Expr, bool) {
+  copied = predciate.copy()
+  all_cols = predicate.extract_columns()
+  for each col in all_cols {
+    if there is index on col {
+      continue
+    }
+    eqSet = relations.GetEquivalentSet(col)
+    newCol = pick one indexed column from eqSet
+    if newCols is not null {
+      copied.replace(col, newCols)
+    } 
+  }
+  return copied
+}
+```
 
