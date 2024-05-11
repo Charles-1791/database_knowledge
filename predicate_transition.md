@@ -101,10 +101,10 @@ node with two children
 ### Two phases
 Predicate transition can be achieved through two phases of work -- predicate pullup and down.
 
-During the pullup phase, every node(except the table scan) receives from its child or children a 'PredicateSummary', which records the arithmatic relationship among the columns. The 'PredicateSummary' is processed in distinct manner according to the nature of the node, then returned to its father node, where further modifications are made. Similary to a bubble rising to the water surface, one by one, the 'PredicateSummary' ascends from the bottom to the top, aka. root of the plan tree.
+During the pullup phase, every node(except the table scan) receives from its child a 'PredicateSummary', which records the arithmatic relationship among the columns. The 'PredicateSummary' is processed in distinct manner according to the nature of the node, then returned to its father node, where further modifications are made. Similary to a bubble rising to the water surface, one by one, the 'PredicateSummary' ascends from the bottom(leaves) to the top(root).
 ![image](https://github.com/Charles-1791/database_knowledge/assets/89259555/82d6e0ff-49a7-4d89-b259-f787f1542552)
 
-The push down phase ensues after the pull up phase ends, and the summary returned from the root is now carried down from root to leaves. When a summary goes through a node, its content changes and some predicates may be generated, which stay there and won't go down. Once a summary reaches the leaf node, i.e. the Table Scan node, it 'flattens' into predicates and are attached to the TableScan.
+The push down phase ensues from end of the pull up phase, and the summary returned from the root is now carried down from root to leaves. When a summary goes through a node, its content changes and some predicates may be generated, which stay there and won't go down. Once a summary reaches the leaf node, i.e. the Table Scan node, it 'flattens' into predicates and are attached to the TableScan.
 ![image](https://github.com/Charles-1791/database_knowledge/assets/89259555/c6f90a55-02ab-445c-9847-fb59ee8c0c73)
 
 
@@ -116,29 +116,31 @@ A predicate summary is a synthesis of multiple predicates, and it consists of tw
 
 ```
 struct PredicateSummary{
-EqRelations relation
+EqRelations relations
 Expression[] conditions
 }
 ```
-- An equivalent set contains several equivalent columns, each of which equals to others. 
-After representing each column with a hash tag followed by a number (e.g., '#1'), an equivalent set can be expressed as:
+
+#### relations
+A 'relations' is an array containing multiple non-overlapping 'equivalent sets', each comprising several columns that equate to each other.
+If we assign each column a unique id like '#1', an equivalent set can be expressed as:
 
 > {#1, #2, #3},
 
-which indicates 
+and it indicates 
 
 > #1 = #2 = #3
 
-The field 'relation' is a big set of equivalent sets, and can be expressed as:
+So a 'relations' can be written as:
 
-> {{#1, #2, #3}, {#4}, {#5, #6}, {#7}, {#8, #9}}
+> \[ {#1, #2, #3}, {#4}, {#5, #6}, {#7}, {#8, #9} \]
 
-and it means:
+and it demonstrates:
 
 > #1 = #2 = #3, #5 = #6, #8 = #9
 
-'relation' also maintains a map mapping each UID to its corresponding set index within the array.
-For instance, a map looks like:
+A 'relations' also keeps a map mapping each UID to its corresponding set index within the array.
+A map looks like:
 
 | UID | set index |
 | --- | ---|
@@ -152,10 +154,8 @@ For instance, a map looks like:
 | #8 | 4 |
 | #9 | 4 |
 
-
-- Expression[] store's all predicates except for those having the form 'column1 = column2', which should be recorded in 'relation'.
-
-#### Another interpretation of predicates
+#### conditions
+'conditions' store's all predicates other than those owning the form 'column1 = column2', which is converted into an equivalent set {column1, column2} and recorded in 'relation'.
 A predicate in 'conditions' should be interpreted as 'a relation among equivalent sets', rather than 'a relation among columns'.
 Considering the following case:
 ![image](https://github.com/Charles-1791/database_knowledge/assets/89259555/07754464-9f43-4be2-82d0-818edc837023)
@@ -168,6 +168,13 @@ should be construed as a 'template'
 
 > $0 + $0 - f($1) * g($2) = $3 + $4
 
-where the $ sign can be viewed as placeholders - $0 stands for the first equivalent set, $1 is the 2nd equivalent set...
-In this way, a predicate reveals the arithmetic relations of equivalent sets, and if we replace the $ placeholder for a column within the corresponding set, a new(and valid) predicate is generated.
+where the $ signs are placeholders -- $0 stands for the first equivalent set, $1 stands for the 2nd equivalent set...
+In this way, a predicate in fact reveals the arithmetic relations among equivalent sets, and if we replace the placeholders with a column within its corresponding set, a new(and valid) predicate is generated. In the example given above, the template could be used to generate 3 * 3 * 2 * 2 * 1 * 1 = 36 different predicates in total.
+
+### Pullup and Pushdown logic
+Since the pullup and pushdown logic strongly correlate, the following content is structured in a pattern where each node is followed by its corresponding pullup and pushdown details.
+
+#### Table Scan
+
+
 
