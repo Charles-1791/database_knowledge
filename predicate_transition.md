@@ -107,6 +107,7 @@ During the pullup phase, every node(except the table scan) receives from its chi
 The push down phase ensues from end of the pull up phase, and the summary returned from the root is now carried down from root to leaves. When a summary goes through a node, its content changes and some predicates may be generated, which stay there and won't go down. Once a summary reaches the leaf node, i.e. the Table Scan node, it 'flattens' into predicates and are attached to the TableScan.
 ![image](https://github.com/Charles-1791/database_knowledge/assets/89259555/c6f90a55-02ab-445c-9847-fb59ee8c0c73)
 
+For a certain plan node, if we name as 'summary_up' the predicate summary returned by it during pullup phase, and name as 'summary_down' the summary it receives from its father in pushdown phase, we always have summary_up <= summary_down, in other words, the summary_down always contains more 'knowledge' than summary_up does.
 
 ### Predicate Summary
 #### Structure
@@ -220,4 +221,9 @@ func TryToConvert(const expression.Expr& predicate, const EqRelation& relations)
 ### Selection
 a selection node receives data from its child and filter out some rows according to the predicates on it. Since Selection only remove some rows, the columns are not affected, which means the input columns are the same as output columns.
 #### Pull up
-A selection node has a predicate (often) corresponding to 'where clause' in a query. Our first step is to turn the predicate into CNF(conjunction normal form) -- split it into several simpler predicates connected by 'AND'. For each simple predicate, call it 'sp', we check whether 'sp' is of form 'col1 = col2', if yes, we find a pair of equivalent columns <col1, col2>, which should be added to relation within PredicateSummary returned from child node; else, simply add 'sp' into conditions.
+<img width="620" alt="image" src="https://github.com/Charles-1791/database_knowledge/assets/89259555/4772725c-b788-4237-ba48-6976aeaf332b">
+
+As a 'filter node', a selection node always has a predicate, which could be converted into CNF(conjunctive normal form: https://en.wikipedia.org/wiki/Conjunctive_normal_form). For each clause in the CNF, we check whether it has the form 'col1 = col2', if so, we find a pair of equivalent columns <col1, col2>, and add it to relation of the PredicateSummary returned from child node; else, we consider the clause a normal predicate and simply add it into 'conditions'.
+
+#### Push down
+When selection recieved a summary from its father node, the summary inevitably contains all the predicate
