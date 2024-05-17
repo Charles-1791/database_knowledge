@@ -78,7 +78,7 @@ In a nut shell, predicates transition deduces new predicates from existing ones,
 ## Implementation
 Different from the approach often adopted in papers, our goal is to 'deduce only when you have to' -- we do not generate predicates as much as possible(predicate closure), pushes all of them and eliminate redundancy; instead, we only deduce nontrivial and pushable predicates.
 
-In the following paragraphs, we would discuss what we should do at each plan node, but before that, let me introduce what a plan node actually is.
+In the following contents, we would discuss what we should do at each plan node, but before that, let me introduce what a plan node actually is.
 
 ### Overviews of plan nodes
 A plan node may have two, one or no children node; the leaf node generates data itself, while others receives data from its children. In optimization phase, there's no real data transferred, but each node is clear of the meta infos(column numbers, the name and type of each column) of the data it would receive and return in execution phase. Each column owns a global unique id to distinguish it from others; a tree node takes in some uids from its children, apply some changes over the data or filter out some rows, then it returns some uids.  
@@ -99,7 +99,7 @@ node with two children
 - output uids are completely different from any uids from its children. (SetOperation such as. Union, Minus, Intersect...)
 
 ### Two phases
-Predicate transition can be achieved through two phases of work -- predicate pullup and down.
+Predicate transition can be divided into two phases -- predicate pullup and predicate push down.
 
 During the pullup phase, every node(except the table scan) receives from its child a 'PredicateSummary', which records the arithmatic relationship among the columns. The 'PredicateSummary' is processed in distinct manner according to the nature of the node, then returned to its father node, where further modifications are made. Similary to a bubble rising to the water surface, one by one, the 'PredicateSummary' ascends from the bottom(leaves) to the top(root).
 ![image](https://github.com/Charles-1791/database_knowledge/assets/89259555/82d6e0ff-49a7-4d89-b259-f787f1542552)
@@ -176,7 +176,7 @@ Since the pullup and pushdown logic strongly correlate, the following content is
 
 #### Table Scan
 ##### Pull up
-A table scan node initially does not have any predicates, so the pull up logic is quite simple: create an empty summary and add all output uids into summary.relations and return the summary.
+A table scan node initially does not have any predicates, so the pull up process is quite simple: create an empty summary and add all output uids into summary.relations and return the summary.
 
 ##### Push down
 Table scan has no child, so all the data feature recorded in summary must be converted back into predicates. 
@@ -217,3 +217,7 @@ func TryToConvert(const expression.Expr& predicate, const EqRelation& relations)
 }
 ```
 
+### Selection
+a selection node receives data from its child and filter out some rows according to the predicates on it. Since Selection only remove some rows, the columns are not affected, which means the input columns are the same as output columns.
+#### Pull up
+A selection node has a predicate, corresponding to the 'where clause' in query. The first step is to turn into CNF(conjunction normal form) the predicate -- split it into several simpler predicates connected by 'AND'. For each simple predicate 'sp', we check whether it is of form 'col1 = col2', if yes, we have a pair of equivalent columns <col1, col2>, which should be added to relation within PredicateSummary returned from child plan node; else, simply add 'sp' into conditions.
