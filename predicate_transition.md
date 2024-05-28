@@ -247,4 +247,6 @@ For example, in the illstration above, we have:
 
 During pull up phase, the summary returned from child contains info(equivalent relation and conditions) about input columns. Since an input column may be a victim, that is, may be removed by projection, any infos involving such column should be modified or erased from summary. 
 
-Let start from relation: for each equivalent set in relation, victims should be remove from it because the father node has no idea what such column is(victims are not return to father node). However, if we simply remove them, the equal relation is lost -- when we do push down afterwards, 
+Let start from relation: for each equivalent set in relation, victims should be remove from it because the father node has no idea what such column is(victims are not return to father node). However, if we simply remove them, the equal relation is lost forever -- there's no way to recover the equal relation in push down phase. Thus, we could save the whole equivalent set in a buffer for future use.
+
+
