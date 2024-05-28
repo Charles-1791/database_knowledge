@@ -219,11 +219,30 @@ func TryToConvert(const expression.Expr& predicate, const EqRelation& relations)
 ```
 
 ### Selection
-a selection node receives data from its child and filter out some rows according to the predicates on it. Since Selection only remove some rows, the columns are not affected, which means the input columns are the same as output columns.
+A selection node receives data from its child and filter out some rows according to the predicates on it. Since Selection only remove some rows, the columns are not affected, which means the input columns are the same as output columns.
 #### Pull up
 <img width="620" alt="image" src="https://github.com/Charles-1791/database_knowledge/assets/89259555/4772725c-b788-4237-ba48-6976aeaf332b">
 
-As a 'filter node', a selection node always has a predicate, which could be converted into CNF(conjunctive normal form: https://en.wikipedia.org/wiki/Conjunctive_normal_form). For each clause in the CNF, we check whether it has the form 'col1 = col2', if so, we find a pair of equivalent columns <col1, col2>, and add it to relation of the PredicateSummary returned from child node; else, we consider the clause a normal predicate and simply add it into 'conditions'.
+As a 'filter node', a selection node always has a predicate, which could be converted into CNF(conjunctive normal form: https://en.wikipedia.org/wiki/Conjunctive_normal_form). For each clause in the CNF, we check whether it is of the form 'col1 = col2', if so, we find a pair of equivalent columns <col1, col2>, which is added to the 'relation' field of the PredicateSummary returned from child node; else, we consider the clause a normal predicate and simply move it into 'conditions'.
 
 #### Push down
-When selection recieved a summary from its father node, the summary inevitably contains all the predicate
+In push down phase, selection recieved from its father a summary, which contains the predicates the current node used to have. Since selection node must have a child, to which we could directly send the summary.
+
+### Projection
+A projection node removes unwanted columns and does computation over one or several columns to generate new columns.
+Naming columns returned from projection's child as input columns, and those returned by projection itself as output columns, we can divide these columns into three categories:
+- Survivors: columns appear in both input and output
+- Victims: columns appear in input but not output
+- Newcomers: columns appear in output but not input
+<img width="249" alt="image" src="https://github.com/Charles-1791/database_knowledge/assets/89259555/af4a6671-3721-4216-89f5-367eae7abf70">
+
+For example, in the illstration above, we have:
+| category | columns |
+|----------|---------|
+| survivors | #2, #4 |
+| victims | #1, #3 |
+| newcomers | #5 |
+
+#### Pull up
+
+During pull up phase, the summary returned from child must contains information about #1,
