@@ -104,7 +104,7 @@ Predicate transition can be divided into two phases -- predicate pullup and pred
 During the pullup phase, every node(except the table scan) receives from its child a 'PredicateSummary', which records the arithmatic relationship among the columns. The 'PredicateSummary' is processed in distinct manner according to the nature of the node, then returned to its father node, where further modifications are made. Similary to a bubble rising to the water surface, one by one, the 'PredicateSummary' ascends from the bottom(leaves) to the top(root).
 ![image](https://github.com/Charles-1791/database_knowledge/assets/89259555/82d6e0ff-49a7-4d89-b259-f787f1542552)
 
-The push down phase ensues from end of the pull up phase, and the summary returned from the root is now carried down from root to leaves. When a summary goes through a node, its content changes and some predicates may be generated, which stay there and won't go down. Once a summary reaches the leaf node, i.e. the Table Scan node, it 'flattens' into predicates and are attached to the TableScan.
+The push down phase ensues end of the pull up phase, and the summary returned from the root is now carried down from root to leaves. When a summary goes through a node, its content changes and some new predicates may be generated, meanwhile some predicates stay there and won't go further down. Once a summary reaches the leaf node, i.e. the Table Scan node, it 'flattens' into a group of predicates and are attached to the TableScan.
 ![image](https://github.com/Charles-1791/database_knowledge/assets/89259555/c6f90a55-02ab-445c-9847-fb59ee8c0c73)
 
 For a certain plan node, if we name as 'summary_up' the predicate summary returned by it during pullup phase, and name as 'summary_down' the summary it receives from its father in pushdown phase, we always have summary_up <= summary_down, in other words, the summary_down always contains more 'knowledge' than summary_up does.
@@ -221,7 +221,8 @@ func TryToConvert(const expression.Expr& predicate, const EqRelation& relations)
 ### Selection
 A selection node receives data from its child and filter out some rows according to the predicates on it. Since Selection only remove some rows, the columns are not affected, which means the input columns are the same as output columns.
 #### Pull up
-<img width="620" alt="image" src="https://github.com/Charles-1791/database_knowledge/assets/89259555/4772725c-b788-4237-ba48-6976aeaf332b">
+<img width="632" alt="image" src="https://github.com/Charles-1791/database_knowledge/assets/89259555/c9d9c83f-7cff-4ae8-80dd-2d390a838602">
+
 
 As a 'filter node', a selection node always has a predicate, which could be converted into CNF(conjunctive normal form: https://en.wikipedia.org/wiki/Conjunctive_normal_form). For each clause in the CNF, we check whether it is of the form 'col1 = col2', if so, we find a pair of equivalent columns <col1, col2>, which is added to the 'relation' field of the PredicateSummary returned from child node; else, we consider the clause a normal predicate and simply move it into 'conditions'.
 
@@ -244,11 +245,21 @@ For example, in the illstration above, we have:
 | newcomers | #5 |
 
 #### Pull up
+During pull up phase, the summary returned from child must contain info(equivalent relation and conditions) about input columns. Since an input column may be a victim, any infos involving such column should be modified or erased from the summary. 
 
-During pull up phase, the summary returned from child contains info(equivalent relation and conditions) about input columns. Since an input column may be a victim, that is, may be removed by projection, any infos involving such column should be modified or erased from summary. 
+<img width="711" alt="image" src="https://github.com/Charles-1791/database_knowledge/assets/89259555/583a6c4f-ca3b-4655-956f-9820c6c36f5f">
 
-Let start from relation: for each equivalent set in relation, victims should be removed because the father node has no idea what such column is(victims are not return to father node). However, simply removing them results in an irreversible loss of information -- there's no way to add victims back into the equivalent set in push down phase. Thus, beforing the removal, we need to save the equivalent set in a buffer.
+Let start from relation. For each equivalent set in relation, victims should be pruned from it in that the father node has no idea what such columns are(victims are not return to father node, and in execution phase no data of these columns are reieved). Nevertheless, simply removing of victims leads to an irreversible loss of information -- there's no way to add them back in push down phase. For example, in the last example, assuming in child summary we have an equivalent set {#1, #2}, if we just remove #1, when we do push down, the information #1 = #2 is forever lost. Thus, we need to save the equivalent set in a buffer before filtering out the victims.
 
-Conditions contaning victims should not be return to father node either, but different from victims in relation, a condition may be converted into a new one acceptable by father node. For instance, 
+Conditions contaning victims should not be returned to father node either, but different from victims in relation, it's possible to convert a predicate to make it 'acceptable' by father node, i.e. in a form only contains survivors. Suppose we have '#1 = #2', from predicate '#1 + #4 < 100', we deduce that '#2 + #4 < 100', which is now valid for parent plan. So the general idea is to substitute victims with its equivalent survivors(if possible), if all victims are replaced, the generated predicate can be reported to father, otherwise, move such predicate into buffer.
+
+#### Push down
+
+<img width="199" alt="image" src="https://github.com/Charles-1791/database_knowledge/assets/89259555/eca2b7b4-854e-45ce-8ff6-2e02388fb994">
+
+Again, let's begin with 'relation'. An equivalent set now contains only newcomers and survivors, and the newcomers should not appear in the summary sent to child(remember, a summary returned and received by a node must contain exactly the columns in its output)
+
+
+
 
 
