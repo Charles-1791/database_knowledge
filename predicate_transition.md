@@ -102,9 +102,11 @@ node with two children
 Predicate transition can be divided into two phases -- predicate pullup and predicate push down.
 
 During the pullup phase, every node(except the table scan) receives from its child a 'PredicateSummary', which records the arithmatic relationship among the columns. The 'PredicateSummary' is processed in distinct manner according to the nature of the node, then returned to its father node, where further modifications are made. Similary to a bubble rising to the water surface, one by one, the 'PredicateSummary' ascends from the bottom(leaves) to the top(root).
+
 ![image](https://github.com/Charles-1791/database_knowledge/assets/89259555/82d6e0ff-49a7-4d89-b259-f787f1542552)
 
 The push down phase ensues end of the pull up phase, and the summary returned from the root is now carried down from root to leaves. When a summary goes through a node, its content changes and new predicates may be generated, meanwhile some predicates remain there and won't go further down. Once a summary reaches the leaf node, i.e. the Table Scan node, it 'flattens' into a group of predicates and are attached to the TableScan.
+
 ![image](https://github.com/Charles-1791/database_knowledge/assets/89259555/c6f90a55-02ab-445c-9847-fb59ee8c0c73)
 
 For a certain plan node, if we name as 'summary_up' the predicate summary returned by it during pullup phase, and name as 'summary_down' the summary it receives from its father in pushdown phase, we always have summary_up <= summary_down, in other words, the summary_down always contains more 'knowledge' than summary_up does. In addition, a summary returned or received by a node should contain and only contains the columns outputs by such node.
@@ -257,9 +259,29 @@ Conditions contaning victims should not be returned to father node either, but d
 
 <img width="199" alt="image" src="https://github.com/Charles-1791/database_knowledge/assets/89259555/eca2b7b4-854e-45ce-8ff6-2e02388fb994">
 
-Again, let's begin with 'relation'. An equivalent set now contains only newcomers and survivors, and the newcomers should not appear in the summary sent to child(remember, a summary returned and received by a node must contain exactly its output columns). Removing from the set newcomers again cause information loss, for example, if we have a set {#2, #5}, where #5 is newcomer, erasing #5 from the set causes the loss of data feature '#2 = #5'. Our solution is to build such equations and create a new selection node as the new parent, to which these generated equations are sent. Here comes a question, what is the right method to generate equations given an equivalent set. 
+Again, let's begin with 'relation'. An equivalent set now contains newcomers and survivors, and the newcomers should not appear in the summary sent to child(remember, a summary received by a node must contain exactly its output columns). Removing from the set newcomers again cause information loss, for example, if we have a set {#2, #5}, where #5 is newcomer, erasing #5 from the set causes the loss of data feature '#2 = #5'. 
 
-Fortunately, a newcomer is always an express comprising exclusively columns from child, i.e. victims + survivors, 
+Fortunately, a newcomer is always an expression comprising exclusively columns from child, i.e. victims + survivors -- the #5 in previous example is defined as #3 + #4. Thus, we could generate a predicate '#2 = #3 + #4' and store it in the Summary.conditions, which would later be sent to child plan. The pseudo-code of such procedure is:
+```
+colum_from_child = victims + survivors
+ret = []
+for each equivalent set S in relation {
+  if all cols in S in column_from_child
+    continue
+  else
+    S+ = S intersect column_from_child
+    S- = S intersect victims
+    validCol = S+.first
+    for each invalid_col in S-:
+      gen = 'invalid_col.corres_expr = validCol'
+      ret += gen
+}
+return ret
+```
+
+Our solution is to build such equations and create a new selection node as the new parent, to which these generated equations are sent. Here comes a question, what is the right method to generate equations given an equivalent set. 
+
+Fortunately, a newcomer can always be expressed with an expression comprising exclusively columns from child, i.e. victims + survivors. The #5 in previous example is defined by #3 + #4, 
 
 
 
