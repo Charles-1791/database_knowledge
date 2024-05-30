@@ -302,8 +302,10 @@ But for predicate #1 + #5 = 128, since there is no survivor equivalent to #5, th
 
 <img width="766" alt="image" src="https://github.com/Charles-1791/database_knowledge/assets/89259555/06f72d75-b6a1-4453-b991-a0078552c947">
 
-
 The whole process can be split into two parts -- relation and condition. For relation, we remove newcomers and generate expressions which is added to condition; for condition, we examine each predicate and displace newcomes with equivalent survivors or their expressions. Finally, we merge the relation and condition sperately with the ones in buffer to draw a full picture.
+
+### Limit
+A limit node only keep the specified number of rows 
 
 
 
