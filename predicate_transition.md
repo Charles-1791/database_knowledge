@@ -255,6 +255,7 @@ Let start from relation. For each equivalent set in relation, victims should be 
 Conditions contaning victims should not be returned to father node either, but different from victims in relation, it's possible to convert a predicate to make it 'acceptable' by father node, i.e. in a form only contains survivors. Suppose we have '#1 = #2', from predicate '#1 + #4 < 100', we deduce that '#2 + #4 < 100', which is now valid for parent plan. So the general idea is to substitute victims with its equivalent survivors(if possible), if all victims are replaced, the generated predicate can be reported to father, otherwise, move such predicate into buffer.
 
 #### Push down
+
 <img width="199" alt="image" src="https://github.com/Charles-1791/database_knowledge/assets/89259555/eca2b7b4-854e-45ce-8ff6-2e02388fb994">
 
 ##### relation
@@ -281,6 +282,7 @@ In short, when handling a relation, some columns must be removed from equivalent
 At last, we merge the relation after pruning with relation in buffer to draw a comprehensive picture of column equal relationship.
 ##### condition
 A predicate in condition may also contain newcomers, but we could firstly try to replace such columns with their equivalent survivors. For example, if we have:
+
 <img width="224" alt="image" src="https://github.com/Charles-1791/database_knowledge/assets/89259555/2670c5a4-8eb0-4a3e-a497-a8f8ae2db69c">
 
 | category | columns |
@@ -288,6 +290,7 @@ A predicate in condition may also contain newcomers, but we could firstly try to
 | survivors | #1, #2 |
 | victims | #4 |
 | newcomers | #3, #5 |
+
 and 
 relation
 > \[{#1}, {#2, #3}, {#5}\]
@@ -296,7 +299,9 @@ For predicate #1 + #3 < 100, we could generate #1 + #2 < 100, which is child-acc
 But for predicate #1 + #5 = 128, since there is no survivor equivalent to #5, this predicate is transformed into '#1 + (#2 * #1 +100) = 128'.
 
 ##### summary
-<img width="784" alt="image" src="https://github.com/Charles-1791/database_knowledge/assets/89259555/7278f975-73d1-4016-9147-47d2e2c6c21f">
+
+<img width="766" alt="image" src="https://github.com/Charles-1791/database_knowledge/assets/89259555/06f72d75-b6a1-4453-b991-a0078552c947">
+
 
 The whole process can be split into two parts -- relation and condition. For relation, we remove newcomers and generate expressions which is added to condition; for condition, we examine each predicate and displace newcomes with equivalent survivors or their expressions. Finally, we merge the relation and condition sperately with the ones in buffer to draw a full picture.
 
