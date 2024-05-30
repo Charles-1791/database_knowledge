@@ -221,10 +221,9 @@ func TryToConvert(const expression.Expr& predicate, const EqRelation& relations)
 ```
 
 ### Selection
-A selection node receives data from its child and filter out some rows according to the predicates on it. Since Selection only remove some rows, the columns are not affected, which means the input columns are the same as output columns.
+A selection node receives from its child data from which some rows are filered out according to the predicates on it. Since Selection only remove some rows, the columns are not affected, which means the input columns are the same as output columns.
 #### Pull up
-<img width="632" alt="image" src="https://github.com/Charles-1791/database_knowledge/assets/89259555/c9d9c83f-7cff-4ae8-80dd-2d390a838602">
-
+<img width="640" alt="image" src="https://github.com/Charles-1791/database_knowledge/assets/89259555/27f11e5d-1185-44b6-a522-cc1fc90beae1">
 
 As a 'filter node', a selection node always has a predicate, which could be converted into CNF(conjunctive normal form: https://en.wikipedia.org/wiki/Conjunctive_normal_form). For each clause in the CNF, we check whether it is of the form 'col1 = col2', if so, we find a pair of equivalent columns <col1, col2>, which is added to the 'relation' field of the PredicateSummary returned from child node; else, we consider the clause a normal predicate and simply move it into 'conditions'.
 
@@ -249,16 +248,16 @@ For example, in the illstration above, we have:
 #### Pull up
 During pull up phase, the summary returned from child must contain info(equivalent relation and conditions) about input columns. Since an input column may be a victim, any infos involving such column should be modified or erased from the summary. 
 
-<img width="711" alt="image" src="https://github.com/Charles-1791/database_knowledge/assets/89259555/583a6c4f-ca3b-4655-956f-9820c6c36f5f">
+<img width="674" alt="image" src="https://github.com/Charles-1791/database_knowledge/assets/89259555/382af549-1923-4251-af21-f42dd6826660">
 
 Let start from relation. For each equivalent set in relation, victims should be pruned from it in that the father node has no idea what such columns are(victims are not return to father node, and in execution phase no data of these columns are reieved). Nevertheless, simply removing of victims leads to an irreversible loss of information -- there's no way to add them back in push down phase. For example, in the last example, assuming in child summary we have an equivalent set {#1, #2}, if we just remove #1, when we do push down, the information #1 = #2 is forever lost. Thus, we need to save the equivalent set in a buffer before filtering out the victims.
 
 Conditions contaning victims should not be returned to father node either, but different from victims in relation, it's possible to convert a predicate to make it 'acceptable' by father node, i.e. in a form only contains survivors. Suppose we have '#1 = #2', from predicate '#1 + #4 < 100', we deduce that '#2 + #4 < 100', which is now valid for parent plan. So the general idea is to substitute victims with its equivalent survivors(if possible), if all victims are replaced, the generated predicate can be reported to father, otherwise, move such predicate into buffer.
 
 #### Push down
-
 <img width="199" alt="image" src="https://github.com/Charles-1791/database_knowledge/assets/89259555/eca2b7b4-854e-45ce-8ff6-2e02388fb994">
 
+##### relation
 Again, let's begin with 'relation'. An equivalent set now contains newcomers and survivors, and the newcomers should not appear in the summary sent to child(remember, a summary received by a node must contain exactly its output columns). Removing from the set newcomers again cause information loss, for example, if we have a set {#2, #5}, where #5 is newcomer, erasing #5 from the set causes the loss of data feature '#2 = #5'. 
 
 Fortunately, a newcomer is always an expression comprising exclusively columns from child, i.e. victims + survivors -- the #5 in previous example is defined as #3 + #4. Thus, we could generate a predicate '#2 = #3 + #4' and store it in the Summary.conditions, which would later be sent to child plan. The pseudo-code of such procedure is:
@@ -278,10 +277,28 @@ for each equivalent set S in relation {
 }
 return ret
 ```
+In short, when handling a relation, some columns must be removed from equivalent sets, meanwhile new predicates are generated and would be pushed down to child. 
+At last, we merge the relation after pruning with relation in buffer to draw a comprehensive picture of column equal relationship.
+##### condition
+A predicate in condition may also contain newcomers, but we could firstly try to replace such columns with their equivalent survivors. For example, if we have:
+<img width="224" alt="image" src="https://github.com/Charles-1791/database_knowledge/assets/89259555/2670c5a4-8eb0-4a3e-a497-a8f8ae2db69c">
 
-Our solution is to build such equations and create a new selection node as the new parent, to which these generated equations are sent. Here comes a question, what is the right method to generate equations given an equivalent set. 
+| category | columns |
+|----------|---------|
+| survivors | #1, #2 |
+| victims | #4 |
+| newcomers | #3, #5 |
+and 
+relation
+> \[{#1}, {#2, #3}, {#5}\]
 
-Fortunately, a newcomer can always be expressed with an expression comprising exclusively columns from child, i.e. victims + survivors. The #5 in previous example is defined by #3 + #4, 
+For predicate #1 + #3 < 100, we could generate #1 + #2 < 100, which is child-acceptable.
+But for predicate #1 + #5 = 128, since there is no survivor equivalent to #5, this predicate is transformed into '#1 + (#2 * #1 +100) = 128'.
+
+##### summary
+<img width="784" alt="image" src="https://github.com/Charles-1791/database_knowledge/assets/89259555/7278f975-73d1-4016-9147-47d2e2c6c21f">
+
+The whole process can be split into two parts -- relation and condition. For relation, we remove newcomers and generate expressions which is added to condition; for condition, we examine each predicate and displace newcomes with equivalent survivors or their expressions. Finally, we merge the relation and condition sperately with the ones in buffer to draw a full picture.
 
 
 
