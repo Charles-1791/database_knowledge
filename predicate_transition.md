@@ -109,7 +109,7 @@ The push down phase ensues end of the pull up phase, and the summary returned fr
 
 ![image](https://github.com/Charles-1791/database_knowledge/assets/89259555/c6f90a55-02ab-445c-9847-fb59ee8c0c73)
 
-For a certain plan node, if we name as 'summary_up' the predicate summary returned by it during pullup phase, and name as 'summary_down' the summary it receives from its father in pushdown phase, we always have summary_up <= summary_down, in other words, the summary_down always contains more 'knowledge' than summary_up does. In addition, a summary returned or received by a node should contain and only contains the columns outputs by such node.
+For a certain plan node, if we name as 'summary_up' the predicate summary returned by it during pullup phase, and 'summary_down' the summary it receives from its father during pushdown phase, we always have summary_up <= summary_down, in other words, the summary_down always contains more 'knowledge' or 'information' than summary_up. Another rule that all nodes follow is that a summary returned or received by a particular node must include and exclusively consist of its own output columns.
 
 ### Predicate Summary
 #### Structure
@@ -305,7 +305,18 @@ But for predicate #1 + #5 = 128, since there is no survivor equivalent to #5, th
 The whole process can be split into two parts -- relation and condition. For relation, we remove newcomers and generate expressions which is added to condition; for condition, we examine each predicate and displace newcomes with equivalent survivors or their expressions. Finally, we merge the relation and condition sperately with the ones in buffer to draw a full picture.
 
 ### Limit
-A limit node only keep the specified number of rows 
+#### Pull Up
+A limit node keeps certain number of rows received from child without changing their values, so all data features from the child stay true. A natural practice is to return directly to father the child summary, while due to the reason to be discussed in the following content, we save an extra copy of summary in buffer.
+
+#### Push down
+One fascinating feature about limit is its semipermeability -- a child summary can be straightly sent to parent node whereas a summary from parent cannot go down further. In our context, summary from father should not go through limit, but stays 'above' the limit. So we should flatten the summary into predicates and create a new selection node to which these predicates are sent. You might have observed a defect -- the summary received from a parent contains at least as much information as the one submitted to it, so direct flattening it leads to the inevitable inclusion of duplicate predicates mirroring the ones found in nodes beneath the limit. Let say we have the following summaries:
+
+<img width="238" alt="image" src="https://github.com/Charles-1791/database_knowledge/assets/89259555/69452ac8-5415-4119-9b48-ab85a12717eb">
+
+The green block above the limit stands for the summary received by limit in push down phase and the purple block denotes the summary returned by child in pull up phase.
+
+is supposed to be flatten into predicates which is then used to generate a new selection node. A summary received from a parent always contains at least as much information as the one submitted to it(by the limit node). 
+
 
 
 
