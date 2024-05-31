@@ -309,16 +309,36 @@ The whole process can be split into two parts -- relation and condition. For rel
 A limit node keeps certain number of rows received from child without changing their values, so all data features from the child stay true. A natural practice is to return directly to father the child summary, while due to the reason to be discussed in the following content, we save an extra copy of summary in buffer.
 
 #### Push down
-One fascinating feature about limit is its semipermeability -- a child summary can be straightly sent to parent node whereas a summary from parent cannot go down further. In our context, summary from father should not go through limit, but stays 'above' the limit. So we should flatten the summary into predicates and create a new selection node to which these predicates are sent. You might have observed a defect -- the summary received from a parent contains at least as much information as the one submitted to it, so direct flattening it leads to the inevitable inclusion of duplicate predicates mirroring the ones found in nodes beneath the limit. Let say we have the following summaries:
+One fascinating feature about limit is its semipermeability -- a child summary can be straightly sent to parent node whereas a summary from parent cannot go down further. In our context, summary from father should not go through limit, but stays 'above' the limit. So we should flatten the summary into predicates and create a new selection node to which these predicates are sent. You might have observed a defect -- the summary received from a parent contains at least as much information as the one submitted to it; directly flattening it leads to the inevitable inclusion of duplicate predicates mirroring the ones found in nodes beneath the limit. Let say we have the following two summaries：
 
-<img width="238" alt="image" src="https://github.com/Charles-1791/database_knowledge/assets/89259555/69452ac8-5415-4119-9b48-ab85a12717eb">
+<img width="206" alt="image" src="https://github.com/Charles-1791/database_knowledge/assets/89259555/db96f306-d63f-477f-96d8-3543d1b14abc">
 
-The green block above the limit stands for the summary received by limit in push down phase and the purple block denotes the summary returned by child in pull up phase.
+The green block above stands for the summary received by limit in push down phase and the purple block denotes the summary returned by child in pull up phase. 
+Apparently, flatten the equivalent set {#1, #2, #3} in the green summary generates #1 = #2 and #2 = #3, whereas #1 = #2 is included in the purple summary. Generating such redundant predicate results in a slower execution, and should be avoided. Meanwhile, the predicate #1 + #3 < 100 is equivalent to #1 + #2 < 100, which mirrors the one in purple summary, so such predicate in condition should also be removed. 
 
-is supposed to be flatten into predicates which is then used to generate a new selection node. A summary received from a parent always contains at least as much information as the one submitted to it(by the limit node). 
+So far, we know that some extra pruning works are necessary after flattening summary, but in fact we could truncate the summary beforehand. 
 
+##### relation
 
+Starting from relation: for limit, an equivalent set in fatherSummary.relation can invariably be segregated into several subsets such that each of them is a complete equivalent set in childSummary.relation.
 
+<img width="805" alt="image" src="https://github.com/Charles-1791/database_knowledge/assets/89259555/2f53cb4e-59c0-42ff-81b6-58ff8b688df9">
 
+For example, in the above image, the set {#1, #3, #5, #6, #7} is perfectly split into {#1, #3}, {#5}, {#6, #7}. The following case could not possibly happens:
+
+<img width="315" alt="image" src="https://github.com/Charles-1791/database_knowledge/assets/89259555/dd64099a-26bf-48a3-baab-50e8bf4795bc">
+
+An equivalent set in child relation must be fully contained in an equivalent set in father relation. In the example, once #4, #5 are in same set, there's no operation that could tear them apart. As a result, columns in the same set forms an unbreakable group.
+
+In general, for each equal set in fatherSummary.relation, according to the childSummary.relation(this is a reason why we store a copy of child summary in buffer), we split it into several smaller ones. After that, we randomly select a column from all subset(a better approach is to choose columns with index on them), let's say, 
+
+#c<sub>1</sub>, #c<sub>2</sub>, #c<sub>3</sub>, ..., #c<sub>i</sub>, 
+
+and generate predicates 
+
+#c<sub>1</sub> = #c<sub>2</sub>, #c<sub>2</sub> = #c<sub>3</sub>, ..., #c<sub>i-1</sub> = #c<sub>i</sub> 
+
+##### condition
+A predicate is redundant when
 
 
