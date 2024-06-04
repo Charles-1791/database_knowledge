@@ -328,17 +328,17 @@ For example, in the above image, the set {#1, #3, #5, #6, #7} is perfectly split
 
 <img width="315" alt="image" src="https://github.com/Charles-1791/database_knowledge/assets/89259555/dd64099a-26bf-48a3-baab-50e8bf4795bc">
 
-An equivalent set in child relation must be fully contained in an equivalent set in father relation. In the example, once #4, #5 are in same set, there's no operation that could tear them apart. As a result, columns in the same set forms an unbreakable group.
+The rationale behind is simple: except for projection, an equivalent set in child relation is always contained in some equivalent set of father relation. In the example, #4, #5 are in the same set, once such bind is built, they would always stay together - there's no operation that could tear them apart. In short, columns in the same set forms an unbreakable group.
 
-In general, for each equal set in fatherSummary.relation, according to the childSummary.relation(this is a reason why we store a copy of child summary in buffer), we split it into several smaller ones. After that, we randomly select a column from all subset(a better approach is to choose columns with index on them), let's say, 
+Our algorithm is: for each set in fatherSummary.relation, according to the childSummary.relation(this is a reason why we store a copy of child summary in buffer), we split it into several smaller subsets, from each of which a representative column is selected(a regular practice is to choose columns with indexes). Assume the following columns are chosen:
 
 #c<sub>1</sub>, #c<sub>2</sub>, #c<sub>3</sub>, ..., #c<sub>i</sub>, 
 
-and generate predicates 
+from which the following predicates are generated:
 
 #c<sub>1</sub> = #c<sub>2</sub>, #c<sub>2</sub> = #c<sub>3</sub>, ..., #c<sub>i-1</sub> = #c<sub>i</sub> 
 
 ##### condition
-A predicate is redundant when
+A predicate pd1 is considered redundant when there exists in childSummary.condition a predicate pd2, such that pd1 is equivalent to pd2. 
 
 
