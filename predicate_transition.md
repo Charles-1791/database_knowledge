@@ -309,14 +309,15 @@ The whole process can be split into two parts -- relation and condition. For rel
 A limit node keeps certain number of rows received from child without changing their values, so all data features from the child stay true. A natural practice is to return directly to father the child summary, while due to the reason to be discussed in the following content, we save an extra copy of summary in buffer.
 
 #### Push down
-One fascinating feature about limit is its semipermeability -- a child summary can be straightly sent to parent node whereas a summary from parent cannot go down further. In our context, summary from father should not go through limit, but stays 'above' the limit. So we should flatten the summary into predicates and create a new selection node to which these predicates are sent. You might have observed a defect -- the summary received from a parent contains at least as much information as the one submitted to it; directly flattening it leads to the inevitable inclusion of duplicate predicates mirroring the ones found in nodes beneath the limit. Let say we have the following two summaries：
+One fascinating feature about limit is its semipermeability -- a child summary can be straightly sent to parent node whereas a summary from parent cannot go down further. In our context, summary from father should not go through limit, but rather stays 'above' the limit. Thus, we should flatten the summary into predicates and create a new selection node to which these predicates are sent. You might have observed a defect -- the summary received from a parent contains at least as much information as the one submitted to it; directly flattening it leads to the inevitable inclusion of duplicate predicates mirroring the ones found in nodes beneath the limit. Let say we have the following two summaries：
 
-<img width="206" alt="image" src="https://github.com/Charles-1791/database_knowledge/assets/89259555/db96f306-d63f-477f-96d8-3543d1b14abc">
+<img width="282" alt="image" src="https://github.com/Charles-1791/database_knowledge/assets/89259555/2457e4b7-7f97-4dfa-a063-53cd26291599">
+
 
 The green block above stands for the summary received by limit in push down phase and the purple block denotes the summary returned by child in pull up phase. 
-Apparently, flatten the equivalent set {#1, #2, #3} in the green summary generates #1 = #2 and #2 = #3, whereas #1 = #2 is included in the purple summary. Generating such redundant predicate results in a slower execution, and should be avoided. Meanwhile, the predicate #1 + #3 < 100 is equivalent to #1 + #2 < 100, which mirrors the one in purple summary, so such predicate in condition should also be removed. 
+Apparently, flatten the equivalent set {#1, #2, #3} in the green summary generates #1 = #2 and #2 = #3, while in fact #1 = #2 is included in the purple summary. Meanwhile, the predicate #1 + #2 < 100 mirrors the one in purple summary. Generating such redundant predicate results in slower execution, which should be avoided.
 
-So far, we know that some extra pruning works are necessary after flattening summary, but in fact we could truncate the summary beforehand. 
+So far, we know that some extra pruning works are necessary after flattening summary, but a better practice would be truncating the summary beforehand. 
 
 ##### relation
 
@@ -339,6 +340,14 @@ from which the following predicates are generated:
 #c<sub>1</sub> = #c<sub>2</sub>, #c<sub>2</sub> = #c<sub>3</sub>, ..., #c<sub>i-1</sub> = #c<sub>i</sub> 
 
 ##### condition
-A predicate pd1 is considered redundant when there exists in childSummary.condition a predicate pd2, such that pd1 is equivalent to pd2. 
+A predicate pd1 is considered redundant when there exists in childSummary.condition a predicate pd2, such that pd1 is equivalent to pd2. Validating equivalence of prediates necessitates a relation(specifing which column equates to which) and since we have two - one in fatherSummary, the other in childSummary - we are in a dilemma: which one to use? Let's gain some intuition from a concrete instance.
 
+<img width="206" alt="image" src="https://github.com/Charles-1791/database_knowledge/assets/89259555/db96f306-d63f-477f-96d8-3543d1b14abc">
 
+The first predicate #1 + #3 < 100 in green block looks similar to the one in purple #1 + #2 < 100. According to green relation, #2 and #3 are equivalent, so #1 + #3 < 100 is equivalent to #1 + #2 < 100 and should be removed, while in purple relation, such equivalence does not hold and the predicate should not be removed. Which one is corret? The answer is the first one. Let's remove #1 + #3 < 100 and see what happened. 
+
+<img width="305" alt="image" src="https://github.com/Charles-1791/database_knowledge/assets/89259555/42b882ea-af01-4bd0-b5ed-987fb7226f4d">
+
+Following the steps given for relation, predicate #2 = #3 would be generated and sent to the selection node above. The data received by limit follows rule #1 + #2 < 100, which still holds for selection. So at the node selection, we have both #2 = #3 and #1 + #2 < 100, naturally #1 + #3 < 100 holds. Should a predicate be deduced at this point, why bother to keep it? 
+
+In conclusion, 
