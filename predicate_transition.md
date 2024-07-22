@@ -35,7 +35,7 @@ Suppose we have table t1 and t2 like these:
 For query:
 > select a, b, d, e from t1 join t2 on b = d and b > 1.0 where f like 'abc%'
 
-the generated RAW plan is:
+the generated raw plan is:
 
 ![image](https://github.com/Charles-1791/database_knowledge/assets/89259555/d27055c7-876d-4f89-a4d2-75d144695625)
 
@@ -44,7 +44,7 @@ Two Table scans retrieve rows of t1 and t2 from storage and send them to Join; t
 If we push the predicates 'b > 1.0' and 'f like 'abc%'' to the left and right table scan nodes, the number of rows received by Join is significantly reduced, which decreases join's computing pressure. 
 
 ## Predicate Transition
-Predication transtition is an advanced version of traditional predicate push down. It derives new predicates from existing ones and pushes them downwards. In addition, the newly deduced predicates may displace the original ones if they are favored by databases(considering indexes). 
+Predication transtition is an advanced version of traditional predicate push down. It derives new predicates from existing ones and pushes them downwards. In addition, the new predicates may displace the original ones if favored by databases(considering indexes). 
 
 Revisit the previous example:
 
@@ -59,16 +59,16 @@ The more advance kinds of deductions are:
 - sum(a) < 10 and a > 0 so a < 10, (mathematics),
 ...
 
-However, not all derived predicates are meaningful. Assuming a query looks like:
+However, not all derived predicates are meaningful. Let's say, we have the following query:
 
 > select a, b, d, e from t1 join t2 on b = d and b > 1.0 where b = a
 
-After seeing b = a, b > 1.0, we know a > 1.0. Nevertheless, column 'a' and 'b' are both from the same table, the new predicate 'a > 1.0' only makes a difference if there is an index on column 'a'. If not, such derivation is not necessary and actually slows down the query, in that it introduces needless computation.
+Seeing b = a, b > 1.0, we immediately know a > 1.0. Nevertheless, column 'a' and 'b' are both from the same table, the new predicate 'a > 1.0' is no better than 'b > 1.0' unless an index has been created on column 'a'. Adding unnecessary predicates like 'a > 1.0' even slows down the query for it introduces redundant conditions.
 
-In a nut shell, predicates transition deduces new predicates from existing ones, 'expanding' the predicate set, and pushes them downwards. During the process, we should be cautious not to generate trivial predicates; sometimes we replace the existing predicates with newly derivations for better performance.
+To sum up, predicates transition deduces new predicates from existing ones and pushes them downwards. During the process, however, we should be cautious not to generate trivial predicates; sometimes we replace the existing conditions with derivations for better performance.
 
 ## Implementation
-Different from the approach often adopted in papers, our goal is to 'deduce only when you have to' -- we do not generate predicates as much as possible(predicate closure), pushes all of them and eliminate redundancy; instead, we only deduce nontrivial and pushable predicates.
+Different from the approach often adopted in papers, where a closure of predicates is generated, my goal is to 'deduce only when you have to' -- we do not generate predicates as much as possible(predicate closure), pushes all of them and eliminate redundancy; instead, we only deduce nontrivial and pushable predicates.
 
 In the following contents, we would discuss what we should do at each plan node, but before that, let me introduce what a plan node actually is.
 
