@@ -63,51 +63,55 @@ However, not all derived predicates are meaningful. Let's say, we have the follo
 
 > select a, b, d, e from t1 join t2 on b = d and b > 1.0 where b = a
 
-Seeing b = a, b > 1.0, we immediately know a > 1.0. Nevertheless, column 'a' and 'b' are both from the same table, the new predicate 'a > 1.0' is no better than 'b > 1.0' unless an index has been created on column 'a'. Adding unnecessary predicates like 'a > 1.0' even slows down the query for it introduces redundant conditions.
+Seeing b = a, b > 1.0, we immediately know a > 1.0. Nevertheless, column 'a' and 'b' are both from the same table, the new predicate 'a > 1.0' is no better than 'b > 1.0' unless an index has been created on column 'a'. Adding unnecessary predicates like 'a > 1.0' even slows down the query for it introduces redundant conditions. 
+
+Another example is that for query:
+
+> select * from t1 join t2 on b = d and a + b < 100
+
+Although we know 'a + d < 100' is also valid, this filter, once generated, cannot be push to left or right child of Join. So such derivation is also meaningless.
 
 To sum up, predicates transition deduces new predicates from existing ones and pushes them downwards. During the process, however, we should be cautious not to generate trivial predicates; sometimes we replace the existing conditions with derivations for better performance.
 
 ## Implementation
-Different from the approach often adopted in papers, where a closure of predicates is generated, my goal is to 'deduce only when you have to' -- we do not generate predicates as much as possible(predicate closure), pushes all of them and eliminate redundancy; instead, we only deduce nontrivial and pushable predicates.
+Different from the regular practice in papers, where a closure of predicates is generated, my approach is to 'deduce only when you have to' - we do not generate predicates as much as possible(predicate closure) and eliminate redundancy afterwards. Instead, only meaningful and pushable predicates are deduced.
 
-In the following contents, we would discuss what we should do at each plan node, but before that, let me introduce what a plan node actually is.
+### An overview of plan nodes
+A plan node may have two, one or no child nodes; the leaf node read data from storage so it has no child, while others receives data from at least one child. During plan optimization, no real data is transferred, but each node owns meta infos, that is, how many columns it would receive and send in execution phase, together with the names and types of these columns. In our framework, each column is assigned a global unique id to distinguish from others. As a result, a node takes in some uids from its children, appling some changes over these columns, then it returns some uids.  
 
-### Overviews of plan nodes
-A plan node may have two, one or no children node; the leaf node generates data itself, while others receives data from its children. In optimization phase, there's no real data transferred, but each node is clear of the meta infos(column numbers, the name and type of each column) of the data it would receive and return in execution phase. Each column owns a global unique id to distinguish it from others; a tree node takes in some uids from its children, apply some changes over the data or filter out some rows, then it returns some uids.  
-
-After labeling the column, the query:
+For example, the query:
 > select a, b, d, e from t1 join t2 on b = d and b > 1.0 where f like 'abc%'
 
-yields plan tree:
+yields the plan tree:
 ![image](https://github.com/Charles-1791/database_knowledge/assets/89259555/bb5ce754-eb0a-47da-94f8-6a6e80c57180)
 
-According to the input and output uids, one-child-noded can be classified into three catagories:
+According to the input and output uids, one-child-noded can be classified into three categories:
 - output uids are same as input uids. (Limit, Selection, Sort.)
-- output contains possibly more uids than input uids(inputUids is a subset of outputUids). (Aggregation and WindowFunction)
-- output only preserves some or no uids from input and add more or no uids to its output. (Projection)
+- output contains possibly extra uids(inputUids is a subset of outputUids). (Aggregation and WindowFunction)
+- output only preserves part of uids from input and introduce new or no uids to its output. (Projection)
 
-node with two children 
+For node with two children, it is categorized into two classes: 
 - output uids are the combinataion of uids of left and right child. (Join)
-- output uids are completely different from any uids from its children. (SetOperation such as. Union, Minus, Intersect...)
+- output uids are completely different from any uids from its children. (Set operation such as. Union, Minus, Intersect...)
 
 ### Two phases
-Predicate transition can be divided into two phases -- predicate pullup and predicate push down.
+Predicate transition is implemented in two steps -- predicate pullup and push down.
 
-During the pullup phase, every node(except the table scan) receives from its child a 'PredicateSummary', which records the arithmatic relationship among the columns. The 'PredicateSummary' is processed in distinct manner according to the nature of the node, then returned to its father node, where further modifications are made. Similary to a bubble rising to the water surface, one by one, the 'PredicateSummary' ascends from the bottom(leaves) to the top(root).
+In the pullup phase, every node(except the table scan) receives from its child a 'PredicateSummary', which records the arithmatic relationship among uids, i.e. columns. The 'PredicateSummary' is processed differently according to the nature of the node then returned to its father node, where further modifications are made. Similary to a bubble rising to the water surface, one by one, the 'PredicateSummary' ascends from the bottom(leaves) to the top(root).
 
 ![image](https://github.com/Charles-1791/database_knowledge/assets/89259555/82d6e0ff-49a7-4d89-b259-f787f1542552)
 
-The push down phase ensues end of the pull up phase, and the summary returned from the root is now carried down from root to leaves. When a summary goes through a node, its content changes and new predicates may be generated, meanwhile some predicates remain there and won't go further down. Once a summary reaches the leaf node, i.e. the Table Scan node, it 'flattens' into a group of predicates and are attached to the TableScan.
+The push down phase ensues end of the pull up phase. The summary returned to root is now carried down from root to leaves. When going through a node, the summary changes - new predicates may be generated; some predicates are attached to the node and won't go further down. Once a summary reaches the leaf node, i.e. the Table Scan node, it 'flattens' into a group of predicates serving as filters for TableScan.
 
 ![image](https://github.com/Charles-1791/database_knowledge/assets/89259555/c6f90a55-02ab-445c-9847-fb59ee8c0c73)
 
-For a certain plan node, if we name as 'summary_up' the predicate summary returned by it during pullup phase, and 'summary_down' the summary it receives from its father during pushdown phase, we always have summary_up <= summary_down, in other words, the summary_down always contains more 'knowledge' or 'information' than summary_up. Another rule that all nodes follow is that a summary returned or received by a particular node must include and exclusively consist of its own output columns.
+For a certain plan node, if we name as 'summary_up' the predicate summary returned by it during pullup phase, and 'summary_down' the summary it receives from its father during pushdown phase, we always have summary_up <= summary_down. In other words, the summary_down always contains more 'knowledge' or 'information' than summary_up. Another promise we make is that a summary received by a node always includes and only includes columns it returned by its child or children.
 
 ### Predicate Summary
 #### Structure
-A predicate constrains the arithmetic relationship among columns, for instance, predicate 'a > 0' add restriction to column a, predicate 'b < c' forces 'c' must be greater than 'b' in result. Another way to see predicates is to consider than as 'promises' or 'data feature', that is, a row won't appear in the result set unless it 'conforms to' all the predicates. 
+A predicate ensures some arithmetic relationship among columns, for instance, predicate 'a > 0' add restriction to column a, predicate 'b < c' forces 'c' to be greater than 'b'. Another way to see predicates is to consider them as 'promises' or 'data features', that is, a row won't appear in the result set unless it follows a certain pattern. 
 
-A predicate summary is a synthesis of multiple predicates, and it consists of two fundamental structures -- a set of all equivalent sets and a list of predicates.
+A predicate summary is just that pattern - a synthesis of multiple predicates. It is implemented with two fundamental structures -- a set of all equivalent sets and a list of predicates.
 
 ```
 struct PredicateSummary{
@@ -117,8 +121,8 @@ struct PredicateSummary{
 ```
 
 #### relations
-A 'relations' is an array containing multiple non-overlapping 'equivalent sets', each comprising several columns that equate to each other.
-If we assign each column a unique id like '#1', an equivalent set can be expressed as:
+A 'relations' is basicly an array containing multiple non-overlapping 'equivalent sets', each of which comprises several columns equal to each other.
+An equivalent set can be expressed as(remember we use a uid to represent a column):
 
 > {#1, #2, #3},
 
