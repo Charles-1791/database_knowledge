@@ -109,9 +109,9 @@ For a certain plan node, if we name as 'summary_up' the predicate summary return
 
 ### Predicate Summary
 #### Structure
-A predicate ensures some arithmetic relationship among columns, for instance, predicate 'a > 0' add restriction to column a, predicate 'b < c' forces 'c' to be greater than 'b'. Another way to see predicates is to consider them as 'promises' or 'data features', that is, a row won't appear in the result set unless it follows a certain pattern. 
+A predicate ensures some arithmetic relationship among columns, for instance, predicate 'a > 0' add restriction to column a, predicate 'b < c' forces 'c' to be greater than 'b'. Another way to see a predicate is to consider it as a 'promise' or 'data feature', that is, a row won't appear in the result set unless it follows a certain pattern. 
 
-A predicate summary is just that pattern - a synthesis of multiple predicates. It is implemented with two fundamental structures -- a set of all equivalent sets and a list of predicates.
+A predicate summary is the synthesis of all predicates; it consists of two fundamental structures -- a set of all equivalent sets and a list of predicates.
 
 ```
 struct PredicateSummary{
@@ -126,20 +126,20 @@ An equivalent set can be expressed as(remember we use a uid to represent a colum
 
 > {#1, #2, #3},
 
-and it indicates 
+which indicates
 
 > #1 = #2 = #3
 
-So a 'relations' can be written as:
+Following this pattern, a 'relations' looks like:
 
 > \[ {#1, #2, #3}, {#4}, {#5, #6}, {#7}, {#8, #9} \]
 
-and it demonstrates:
+and it suggests:
 
 > #1 = #2 = #3, #5 = #6, #8 = #9
 
-A 'relations' also keeps a map mapping each UID to its corresponding set index within the array.
-A map looks like:
+A 'relations' also keeps a lookup table mapping UID to the set to which it belongs.
+A typical example looks like:
 
 | UID | set index |
 | --- | ---|
@@ -153,8 +153,11 @@ A map looks like:
 | #8 | 4 |
 | #9 | 4 |
 
+The map specifies that #1, #2, #3 are in the first equivalent set, while #4 and #6 are in the third equivalent set. By examining their set indexes, we can quickly tell whether two uids are equal.
+
 #### conditions
-'conditions' store's all predicates other than those owning the form 'column1 = column2', which is converted into an equivalent set {column1, column2} and recorded in 'relation'.
+'conditions' store's all predicates other than those owning the form 'column1 = column2', which ought to be recorded in 'relation'.
+
 A predicate in 'conditions' should be interpreted as 'a relation among equivalent sets', rather than 'a relation among columns'.
 Considering the following case:
 ![image](https://github.com/Charles-1791/database_knowledge/assets/89259555/07754464-9f43-4be2-82d0-818edc837023)
@@ -167,18 +170,19 @@ should be construed as a 'template'
 
 > $0 + $0 - f($1) * g($2) = $3 + $4
 
-where the $ signs are placeholders -- $0 stands for the first equivalent set, $1 stands for the 2nd equivalent set...
-In this way, a predicate in fact reveals the arithmetic relations among equivalent sets, and if we replace the placeholders with a column within its corresponding set, a new(and valid) predicate is generated. In the example given above, the template could be used to generate 3 * 3 * 2 * 2 * 1 * 1 = 36 different predicates in total.
+where the $ are placeholders -- $0 stands for the first equivalent set, $1 stands for the 2nd equivalent set, etc...
+In this way, a predicate reveals the arithmetic relation among equivalent sets. By replacing every placeholders with a column from its corresponding set, a valid predicate is generated. In the example given above, in total 3 * 3 * 2 * 2 * 1 * 1 = 36 different predicates can be generated.
 
 ### Pullup and Pushdown logic
-Since the pullup and pushdown logic strongly correlate, the following content is structured in a pattern where each node is followed by its corresponding pullup and pushdown details.
+Since the pullup and pushdown logic strongly correlate, the following content is structured in a manner where each node is followed by its corresponding pullup and pushdown details.
 
 #### Table Scan
 ##### Pull up
-A table scan node initially does not have any predicates, so the pull up process is quite simple: create an empty summary and add all output uids into summary.relations and return the summary.
+A table scan initially does not have any predicates in a raw plan, so the pull up process is quite simple: create an empty summary and add all output uids into summary.relations and return the summary.
 
 ##### Push down
-Table scan has no child, so all the data feature recorded in summary must be converted back into predicates. 
+As table scan has no child, all the data feature recorded in summary must be converted back into predicates. 
+
 Similar to stringing some pearls into a necklace, the process of flattening a 'relations' is using equation marks to connect each column, which can be expressed as:
 ```
 for each equivalent set S in relations {
