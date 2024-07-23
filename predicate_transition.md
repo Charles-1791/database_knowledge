@@ -308,15 +308,16 @@ The whole process can be split into two parts -- relation and condition. For rel
 Limit keeps a certain number of rows returned from child without changing their values, therefore no further modification on summary is required. A natural practice is to directly return to father the child summary, but due to the reason to be discussed in the following content, we keep in buffer an extra copy of summary.
 
 #### Push down
-What is fascinating about limit is its semipermeability -- a summary from limit's child can be straightly sent to limit's parent whereas a summary from parent cannot go down further without changes. Thus, in our context, summary from father does not go through limit but rather stays 'above' the limit. We should flatten the summary into predicates and create a new selection node to which these predicates are sent. You might have noticed a flaw -- the summary received from a parent contains at least as much information as the one submitted to it; directly flattening it leads to the inevitable inclusion of duplicate predicates mirroring the ones found in nodes beneath the limit. Let say we have the following two summaries：
+What is fascinating about limit is its semipermeability - a summary from limit's child can be straightly sent to limit's parent whereas a summary from parent cannot go down further. The retionale behind it is simple: doing filter before limit is different from doing limit and then filter. Our practice is to flatten the summary into an array of predicates, which are then sent to a newly generated Selection node hanging above the Limit. Amongst these predicates, though, there are some that can pass through Limit, specifically, the ones included in the summary offerred by Limit's child when we do predicate pull up. Let say we have the following two summaries：
 
 <img width="282" alt="image" src="https://github.com/Charles-1791/database_knowledge/assets/89259555/2457e4b7-7f97-4dfa-a063-53cd26291599">
 
+The green block above stands for the summary Limit receives from above in push down phase and the purple block denotes the summary returned by child in pull up phase. 
+Flattening the equivalent set {#1, #2, #3} in the green summary, we generate #1 = #2 and #2 = #3. You may have found that #1 = #2 is presented in the purple summary. On top of that, the predicate #1 + #2 < 100 mirrors the one in purple summary. These conditions, since they are originally from the nodes below, can be pushed down. 
 
-The green block above stands for the summary received by limit in push down phase and the purple block denotes the summary returned by child in pull up phase. 
-Apparently, flatten the equivalent set {#1, #2, #3} in the green summary generates #1 = #2 and #2 = #3, while in fact #1 = #2 is included in the purple summary. Meanwhile, the predicate #1 + #2 < 100 mirrors the one in purple summary. Generating such redundant predicate results in slower execution, which should be avoided.
+Recall our promise 'the summary_down always contains more knowledge or information than summary_up', we can simply derive that the summary that Limit sends to its child is exactly 'summary_up', which we have stored in the buffer.
 
-So far, we know that some extra pruning works are necessary after flattening summary, but a better practice would be truncating the summary beforehand. 
+So far, our push down works in this way: firstly we flatten the summary received into a list of predicates; then we remove the redundant ones from the list, what is left goes into a generated Selection node; finally, the summary_up is sent to child. In practice, a better practice would be truncating the summary before flattening. The following two sections explain how to achieve this goal.
 
 ##### relation
 
