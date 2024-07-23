@@ -198,7 +198,6 @@ The logic behind is quite intuitive, since columns(uids) in an equivalent set eq
 
 > flatten(\[ {#1}, {#2, #3, #4}, {#5, #6} \]) = \[#2 = #3, #3 = #4, #5 = #6\]
 
-
 Since 'conditions' itself is an array of predicates which can be used directly, a better practice, nevertheless, would be converting them into new conditions more 'favored' by database through subsituting columns. As metioned above, a predicate reveals relations among equivalent sets; after replacing column with an  indexed(and equivalent) one, a new predicate usually outperforms the original one thanks to the more efficient index scan. The pseudocode is:
 
 ```
@@ -306,10 +305,10 @@ The whole process can be split into two parts -- relation and condition. For rel
 
 ### Limit
 #### Pull Up
-A limit node keeps certain number of rows received from child without changing their values, so all data features from the child stay true. A natural practice is to return directly to father the child summary, while due to the reason to be discussed in the following content, we save an extra copy of summary in buffer.
+Limit keeps a certain number of rows returned from child without changing their values, therefore no further modification on summary is required. A natural practice is to directly return to father the child summary, but due to the reason to be discussed in the following content, we keep in buffer an extra copy of summary.
 
 #### Push down
-One fascinating feature about limit is its semipermeability -- a child summary can be straightly sent to parent node whereas a summary from parent cannot go down further. In our context, summary from father should not go through limit, but rather stays 'above' the limit. Thus, we should flatten the summary into predicates and create a new selection node to which these predicates are sent. You might have observed a defect -- the summary received from a parent contains at least as much information as the one submitted to it; directly flattening it leads to the inevitable inclusion of duplicate predicates mirroring the ones found in nodes beneath the limit. Let say we have the following two summaries：
+What is fascinating about limit is its semipermeability -- a summary from limit's child can be straightly sent to limit's parent whereas a summary from parent cannot go down further without changes. Thus, in our context, summary from father does not go through limit but rather stays 'above' the limit. We should flatten the summary into predicates and create a new selection node to which these predicates are sent. You might have noticed a flaw -- the summary received from a parent contains at least as much information as the one submitted to it; directly flattening it leads to the inevitable inclusion of duplicate predicates mirroring the ones found in nodes beneath the limit. Let say we have the following two summaries：
 
 <img width="282" alt="image" src="https://github.com/Charles-1791/database_knowledge/assets/89259555/2457e4b7-7f97-4dfa-a063-53cd26291599">
 
