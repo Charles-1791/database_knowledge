@@ -308,34 +308,48 @@ The whole process can be split into two parts -- relation and condition. For rel
 Limit keeps a certain number of rows returned from child without changing their values, therefore no further modification on summary is required. A natural practice is to directly return to father the child summary, but due to the reason to be discussed in the following content, we keep in buffer an extra copy of summary.
 
 #### Push down
-What is fascinating about limit is its semipermeability - a summary from limit's child can be straightly sent to limit's parent whereas a summary from parent cannot go down further. The retionale behind it is simple: doing filter before limit is different from doing limit and then filter. Our practice is to flatten the summary into an array of predicates, which are then sent to a newly generated Selection node hanging above the Limit. Amongst these predicates, though, there are some that can pass through Limit, specifically, the ones included in the summary offerred by Limit's child when we do predicate pull up. Let say we have the following two summaries：
+What is fascinating about limit is its semipermeability - a summary from limit's child can be straightly sent to limit's parent whereas a summary from parent cannot go down further. The retionale behind it is simple: doing filter before limit is different from doing limit and then filter. Our practice is to flatten the summary into an array of predicates, which are then sent to a newly generated Selection node hanging above the Limit. Amongst these predicates, though, there are some that can pass through Limit, specifically, the ones included in the summary offerred by Limit's child when we do predicate pull up, call this summary 'summary_up'. Let say we have the following two summaries：
 
 <img width="282" alt="image" src="https://github.com/Charles-1791/database_knowledge/assets/89259555/2457e4b7-7f97-4dfa-a063-53cd26291599">
 
 The green block above stands for the summary Limit receives from above in push down phase and the purple block denotes the summary returned by child in pull up phase. 
 Flattening the equivalent set {#1, #2, #3} in the green summary, we generate #1 = #2 and #2 = #3. You may have found that #1 = #2 is presented in the purple summary. On top of that, the predicate #1 + #2 < 100 mirrors the one in purple summary. These conditions, since they are originally from the nodes below, can be pushed down. 
 
-Recall our promise 'the summary_down always contains more knowledge or information than summary_up', we can simply derive that the summary that Limit sends to its child is exactly 'summary_up', which we have stored in the buffer.
+So far, we know only predictes included in summary_up can be push down. 
 
-So far, our push down works in this way: firstly we flatten the summary received into a list of predicates; then we remove the redundant ones from the list, what is left goes into a generated Selection node; finally, the summary_up is sent to child. In practice, a better practice would be truncating the summary before flattening. The following two sections explain how to achieve this goal.
+<img width="484" alt="image" src="https://github.com/user-attachments/assets/10c844d4-ff14-4cc4-9fda-6924bbfac8e3">
+
+Recall the fact that 'the summary_down always contains more knowledge or information than summary_up', which menas: 
+
+<img width="250" alt="image" src="https://github.com/user-attachments/assets/d6bbc430-4680-4d63-bfe0-a0edd172f764">
+
+Thus we can conclude that the summary which Limit should send to its child is exactly 'summary_up'. And this is the rationale why we need to store in buffer a copy of summary_up.
+
+<img width="342" alt="image" src="https://github.com/user-attachments/assets/0dfa51be-9428-460c-b4e6-4dcef0cbaaed">
+
+To sum up, the whole process is: initially, we flatten into a list of predicates the summary received from father, namely, summary_down; then we remove those pushable from the list, what is left goes into a generated Selection node; eventually, the summary_up in buffer is sent to child. In practice, a better practice is truncating the summary before flattening, which is discussed in the following two sections.
 
 ##### relation
 
-Starting from relation: for limit, an equivalent set in fatherSummary.relation can invariably be segregated into several subsets such that each of them is a complete equivalent set in childSummary.relation.
+For limit, an equivalent set in fatherSummary.relation can invariably be segregated into several subsets such that each of them is a full equivalent set in childSummary.relation.
 
 <img width="805" alt="image" src="https://github.com/Charles-1791/database_knowledge/assets/89259555/2f53cb4e-59c0-42ff-81b6-58ff8b688df9">
 
-For example, in the above image, the set {#1, #3, #5, #6, #7} is perfectly split into {#1, #3}, {#5}, {#6, #7}. The following case could not possibly happens:
+For example, in the above image, the set {#1, #3, #5, #6, #7} is perfectly split into {#1, #3}, {#5}, {#6, #7}. The following case could never possibly happens:
 
 <img width="315" alt="image" src="https://github.com/Charles-1791/database_knowledge/assets/89259555/dd64099a-26bf-48a3-baab-50e8bf4795bc">
 
-The rationale behind is simple: except for projection, an equivalent set in child relation is always contained in some equivalent set of father relation. In the example, #4, #5 are in the same set, once such bind is built, they would always stay together - there's no operation that could tear them apart. In short, columns in the same set forms an unbreakable group.
+The rationale behind is simple: except for projection, an equivalent set in summary_up.relation is always contained in some equivalent set of predicate_down.relation. 
 
-Our algorithm is: for each set in fatherSummary.relation, according to the childSummary.relation(this is a reason why we store a copy of child summary in buffer), we split it into several smaller subsets, from each of which a representative column is selected(a regular practice is to choose columns with indexes). Assume the following columns are chosen:
+![image](https://github.com/user-attachments/assets/ddd668cc-59a4-4e5e-8b6e-9217cf4e9982)
+
+In our instance, #4, #5 are in the same set, so they are equal to each other; such bind, once built, cannot be broken - $4 and $5 would always stay in the same set and there's no operation that could tear them apart. In short, columns in the same set forms an unbreakable group.
+
+Our algorithm is: for each set in summary_down.relation, split it into several, say N, smaller subsets based on summary_up.relation; then pick a representative column from each subsets(a regular practice is to choose those with indexes) and generate N-1 equations. Assume the following columns are chosen:
 
 #c<sub>1</sub>, #c<sub>2</sub>, #c<sub>3</sub>, ..., #c<sub>i</sub>, 
 
-from which the following predicates are generated:
+from which we assemble the ollowing predicates:
 
 #c<sub>1</sub> = #c<sub>2</sub>, #c<sub>2</sub> = #c<sub>3</sub>, ..., #c<sub>i-1</sub> = #c<sub>i</sub> 
 
