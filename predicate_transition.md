@@ -343,25 +343,27 @@ The rationale behind is simple: except for projection, an equivalent set in summ
 
 ![image](https://github.com/user-attachments/assets/ddd668cc-59a4-4e5e-8b6e-9217cf4e9982)
 
-In our instance, #4, #5 are in the same set, so they are equal to each other; such bind, once built, cannot be broken - $4 and $5 would always stay in the same set and there's no operation that could tear them apart. In short, columns in the same set forms an unbreakable group.
+In our instance, #4, #5 are in the same set, so they are equal to each other; such relation, once built, cannot be broken - $4 and $5 would always stay in the same set and there's no operation tearing them apart. In short, columns in the same set forms an unbreakable group.
 
-Our algorithm is: for each set in summary_down.relation, split it into several, say N, smaller subsets based on summary_up.relation; then pick a representative column from each subsets(a regular practice is to choose those with indexes) and generate N-1 equations. Assume the following columns are chosen:
+Our algorithm is: for each set in summary_down.relation, split it into several, say N, smaller subsets based on summary_up.relation; then pick a representative column from each subsets(a regular practice is to choose those with indexes) and generate N-1 equations. Assume the following columns are chosen from subsets:
 
 #c<sub>1</sub>, #c<sub>2</sub>, #c<sub>3</sub>, ..., #c<sub>i</sub>, 
 
-from which we assemble the ollowing predicates:
+from which we assemble the following predicates:
 
 #c<sub>1</sub> = #c<sub>2</sub>, #c<sub>2</sub> = #c<sub>3</sub>, ..., #c<sub>i-1</sub> = #c<sub>i</sub> 
 
+The proccess is similar to tearing a pizza into several pieces, when you do so, there are always cheese strands connecting two pieces. The generated predicates are just like these strands, gluing together fragments of an equivalent set.
+
 ##### condition
-A predicate pd1 is considered redundant when there exists in childSummary.condition a predicate pd2, such that pd1 is equivalent to pd2. Validating equivalence of prediates necessitates a relation(specifing which column equates to which) and since we have two - one in fatherSummary, the other in childSummary - we are in a dilemma: which one to use? Let's gain some intuition from a concrete instance.
+A predicate pd1 is considered redundant when there exists in childSummary.condition a predicate pd2, such that pd1 is equivalent to pd2. Validating equivalence of prediates necessitates consulting a relation(specifing which column equates to which) and since we have two - one in fatherSummary, the other in childSummary - we are in a dilemma: which one to use? Let's gain some intuition from a concrete instance.
 
 <img width="206" alt="image" src="https://github.com/Charles-1791/database_knowledge/assets/89259555/db96f306-d63f-477f-96d8-3543d1b14abc">
 
-The first predicate #1 + #3 < 100 in green block looks similar to the one in purple #1 + #2 < 100. According to green relation, #2 and #3 are equivalent, so #1 + #3 < 100 is equivalent to #1 + #2 < 100 and should be removed, while in purple relation, such equivalence does not hold and the predicate should not be removed. Which one is corret? The answer is the first one. Let's remove #1 + #3 < 100 and see what happened. 
+The first predicate #1 + #3 < 100 in green block looks similar to the one in purple #1 + #2 < 100. According to green relation, #2 and #3 are equivalent, so #1 + #3 < 100 is equivalent to #1 + #2 < 100 and should be removed, whereas based on purple relation, such equivalence does not hold. Which one is corret? The answer is the former one. Let's remove #1 + #3 < 100 and see what happened. 
 
 <img width="305" alt="image" src="https://github.com/Charles-1791/database_knowledge/assets/89259555/42b882ea-af01-4bd0-b5ed-987fb7226f4d">
 
-Following the steps given for relation, predicate #2 = #3 would be generated and sent to the selection node above. The data received by limit follows rule #1 + #2 < 100, which still holds for selection. So at the node selection, we have both #2 = #3 and #1 + #2 < 100, naturally #1 + #3 < 100 holds. Should a predicate be deduced at this point, why bother to keep it? 
+Following the steps for relation, predicate #2 = #3 would be generated and sent to the selection node above. The data received by limit follows rule #1 + #2 < 100, which still holds for selection. So at the node selection, we have both #2 = #3 and #1 + #2 < 100, naturally #1 + #3 < 100 holds. Should a predicate be deduced at this point, why bother to keep it? 
 
 In conclusion, 
