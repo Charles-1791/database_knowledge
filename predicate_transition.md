@@ -374,4 +374,4 @@ An aggregation node firstly divide the rows into several groups(group by) or a s
 
 Aggregation node firstly split tuples received from child node into groups based on the value of a, b, then it calculates expression c+d, a-b, e for each row; after that, it adds up value of c+d, computes average of a-b and find maximum value of e over all tuples within the same group; finally, each group only returns one row, and all rows are stacked up as the output. 
 
-As shown above, aggregation node may generate new columns, such as sum(c+d), it also erases some columns, like column c, d, e, therefore, it is similar to projection
+As shown above, aggregation node may generate new columns, such as sum(c+d), it may also erase some columns, like column c, d, e. Similar to projection, we de 
