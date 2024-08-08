@@ -305,15 +305,15 @@ The whole process can be split into two parts -- relation and condition. For rel
 
 ### Limit
 #### Pull Up
-Limit keeps a certain number of rows returned from child without changing their values, therefore no further modification on summary is required. A natural practice is to directly return to father the child summary, but due to the reason to be discussed in the following content, we keep in buffer an extra copy of summary.
+Limit keeps a certain number of rows returned from child without changing their values, therefore no further modification on summary is required. A natural practice is to directly return to father the child summary, but due to the reason to be discussed, we keep in buffer an extra copy of summary.
 
 #### Push down
-What is fascinating about limit is its semipermeability - a summary from limit's child can be straightly sent to limit's parent whereas a summary from parent cannot go down further. The retionale behind it is simple: doing filter before limit is different from doing limit and then filter. Our practice is to flatten the summary into an array of predicates, which are then sent to a newly generated Selection node hanging above the Limit. Amongst these predicates, though, there are some that can pass through Limit, specifically, the ones included in the summary offerred by Limit's child when we do predicate pull up, call this summary 'summary_up'. Let say we have the following two summaries：
+What is fascinating about limit is its semipermeability - a summary from limit's child can be straightly sent to limit's parent whereas a summary from parent cannot go down further. The retionale behind it is simple: doing filter before limit is different from doing limit and then filter. A natural practice is to flatten the summary into an array of predicates, which are then sent to a newly generated Selection node hanging above the Limit. Amongst these predicates, though, some can pass through Limit, namely, the ones included in summary offerred by Limit's child when we do predicate pull up, call this summary 'summary_up'. Let say we have the following two summaries：
 
 <img width="282" alt="image" src="https://github.com/Charles-1791/database_knowledge/assets/89259555/2457e4b7-7f97-4dfa-a063-53cd26291599">
 
 The green block above stands for the summary Limit receives from above in push down phase and the purple block denotes the summary returned by child in pull up phase. 
-Flattening the equivalent set {#1, #2, #3} in the green summary, we generate #1 = #2 and #2 = #3. You may have found that #1 = #2 is presented in the purple summary. On top of that, the predicate #1 + #2 < 100 mirrors the one in purple summary. These conditions, since they are originally from the nodes below, can be pushed down. 
+Flattening the equivalent set {#1, #2, #3} in the green summary, we generate #1 = #2 and #2 = #3. You may have found that #1 = #2 is presented in the purple summary. On top of that, the predicate #1 + #2 < 100 mirrors the one in purple summary. These conditions, since they originate from the nodes below, can be pushed down. 
 
 So far, we know only predictes included in summary_up can be push down. 
 
@@ -323,14 +323,13 @@ Recall the fact that 'the summary_down always contains more knowledge or informa
 
 <img width="250" alt="image" src="https://github.com/user-attachments/assets/d6bbc430-4680-4d63-bfe0-a0edd172f764">
 
-Thus we can conclude that the summary which Limit should send to its child is exactly 'summary_up'. And this is the rationale why we need to store in buffer a copy of summary_up.
+Thus, we conclude that the summary which Limit should send to its child is exactly 'summary_up'. And this explains why we need to store in buffer a copy of summary_up.
 
 <img width="342" alt="image" src="https://github.com/user-attachments/assets/0dfa51be-9428-460c-b4e6-4dcef0cbaaed">
 
-To sum up, the whole process is: initially, we flatten into a list of predicates the summary received from father, namely, summary_down; then we remove those pushable from the list, what is left goes into a generated Selection node; eventually, the summary_up in buffer is sent to child. In practice, a better practice is truncating the summary before flattening, which is discussed in the following two sections.
+To sum up, the whole process is: initially, we flatten into a list of predicates the summary received from father, namely, summary_down; then we remove the pushable from the list, what is left goes into a generated Selection node; eventually, the summary_up in buffer is sent to child. In practice, a better practice is to truncate the summary before flattening, which is discussed in the following two sections.
 
 ##### relation
-
 For limit, an equivalent set in fatherSummary.relation can invariably be segregated into several subsets such that each of them is a full equivalent set in childSummary.relation.
 
 <img width="805" alt="image" src="https://github.com/Charles-1791/database_knowledge/assets/89259555/2f53cb4e-59c0-42ff-81b6-58ff8b688df9">
@@ -339,7 +338,7 @@ For example, in the above image, the set {#1, #3, #5, #6, #7} is perfectly split
 
 <img width="315" alt="image" src="https://github.com/Charles-1791/database_knowledge/assets/89259555/dd64099a-26bf-48a3-baab-50e8bf4795bc">
 
-The rationale behind is simple: except for projection, an equivalent set in summary_up.relation is always contained in some equivalent set of predicate_down.relation. 
+The rationale behind is simple: except for Projection, an equivalent set in summary_up.relation is always contained in some equivalent set of predicate_down.relation. 
 
 ![image](https://github.com/user-attachments/assets/ddd668cc-59a4-4e5e-8b6e-9217cf4e9982)
 
