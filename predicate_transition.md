@@ -368,10 +368,10 @@ Following the steps for relation, predicate #2 = #3 would be generated and sent 
 To sum up, we check all predicates stored in summary_down.conditions, if we find an equivalent one in summary_up.conditions based on summary_down.relation, we remove it.
 
 ### Aggregation
-An aggregation node firstly divide the rows into several groups(group by) or a single group(no group by clause). In each group, some expressions are firstly evaluated for each row, and then the aggregate functions 'combines' or 'merge' the expression results for all rows into a single row. For instance, for query:
+An aggregation node firstly divides the rows into several groups based on the group by clause; in each group, the aggregate functions 'combines' or 'merge' the expression(specified in select clause) results for all rows into a single tuple. For instance, for query:
 
-> select a, b, sum(c+d), avg(a-b), max(e) from t group by a, b
+> select a, b, sum(c+d), avg(a-b), max(e) from t group by a + b
 
-Aggregation node firstly split tuples received from child node into groups based on the value of a, b, then it calculates expression c+d, a-b, e for each row; after that, it adds up value of c+d, computes average of a-b and find maximum value of e over all tuples within the same group; finally, each group only returns one row, and all rows are stacked up as the output. 
+Aggregation calculates the value a, b, c+d, a-b, e, a+b for each row, then it splits tuples from child into groups based on the value of a+b. After that, in one group, the sum, average and maximum is evaluated before a single row is outputed. Rows reported by groups are stacked up as the final output. 
 
-As shown above, aggregation node may generate new columns, such as sum(c+d), it may also erase some columns, like column c, d, e. Similar to projection, we de 
+Similar to projection, aggregation could generate new columns, such as sum(c+d), it may also erase some columns, like column c, d, e. Similar to projection, we de 
