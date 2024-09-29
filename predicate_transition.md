@@ -97,21 +97,21 @@ For node with two children, it is categorized into two classes:
 ### Two phases
 Predicate transition is implemented in two steps -- predicate pullup and push down.
 
-In the pullup phase, every node(except the table scan) receives from its child a 'PredicateSummary', which records the arithmatic relationship among uids, i.e. columns. The 'PredicateSummary' is processed differently according to the nature of the node then returned to its father node, where further modifications are made. Similary to a bubble rising to the water surface, one by one, the 'PredicateSummary' ascends from the bottom(leaves) to the top(root).
+In the pullup phase, every node(except the table scan) receives from its child a 'PredicateSummary', which records the arithmatic relationship among uids, i.e. columns. The 'PredicateSummary' is processed differently according to the nature of the node, and is then returned to its father node, where further modifications are made. Similary to a bubble rising to the water surface, one by one, the 'PredicateSummary' ascends from the bottom(leaves) to the top(root).
 
 ![image](https://github.com/Charles-1791/database_knowledge/assets/89259555/82d6e0ff-49a7-4d89-b259-f787f1542552)
 
-The push down phase ensues end of the pull up phase. The summary returned to root is now carried down from root to leaves. When going through a node, the summary changes - new predicates may be generated; some predicates are attached to the node and won't go further down. Once a summary reaches the leaf node, i.e. the Table Scan node, it 'flattens' into a group of predicates serving as filters for TableScan.
+The push down phase begins upon the finish of the pull up phase. The summary returned by root now traverses down from root to leaves. While permeating through a node, the summary changes accordingly - some new predicates may be generated while some are attached to the node and stop going any further. When a summary reaches the leaf nodes, which are invariably the Table Scan, it 'flattens' into a group of predicates(filters) for TableScan.
 
 ![image](https://github.com/Charles-1791/database_knowledge/assets/89259555/c6f90a55-02ab-445c-9847-fb59ee8c0c73)
 
-For a certain plan node, if we name as 'summary_up' the predicate summary returned by it during pullup phase, and 'summary_down' the summary it receives from its father during pushdown phase, we always have summary_up <= summary_down. In other words, the summary_down always contains more 'knowledge' or 'information' than summary_up. Another promise we make is that a summary received by a node always includes and only includes columns it returned by its child or children.
+For a certain plan node, if we name as 'summary_up' the predicate summary returned by it during pullup phase, and 'summary_down' the summary it receives from its father during pushdown phase, it's always true that summary_up <= summary_down. In other words, the summary_down always contains more 'knowledge' or 'information' than summary_up. Another thing is certain: a summary received by a node must include and only include columns returned by its children.
 
 ### Predicate Summary
 #### Structure
-A predicate ensures some arithmetic relationship among columns, for instance, predicate 'a > 0' add restriction to column a, predicate 'b < c' forces 'c' to be greater than 'b'. Another way to see a predicate is to consider it as a 'promise' or 'data feature', that is, a row won't appear in the result set unless it follows a certain pattern. 
+A predicate is actually an arithmetic relationship among columns, for instance, predicate 'a > 0' add restriction to column a, predicate 'b < c' forces 'c' to be greater than 'b'. Another way to see a predicate is to consider it a 'data feature' or 'pattern', which a tuple must follow to appear in the result set. 
 
-A predicate summary is the synthesis of all predicates; it consists of two fundamental structures -- a set of all equivalent sets and a list of predicates.
+Our predicate summary is the synthesis of all predicates. It consists of two structures -- a set of all equivalent sets and a list of predicates.
 
 ```
 struct PredicateSummary{
@@ -121,8 +121,8 @@ struct PredicateSummary{
 ```
 
 #### relations
-A 'relations' is basicly an array containing multiple non-overlapping 'equivalent sets', each of which comprises several columns equal to each other.
-An equivalent set can be expressed as(remember we use a uid to represent a column):
+A 'relations' is an array containing multiple non-overlapping 'equivalent sets', each of which comprises columns equal to each other.
+An equivalent set looks like (remember we use an uid to represent a column):
 
 > {#1, #2, #3},
 
@@ -220,11 +220,11 @@ func TryToConvert(const expression.Expr& predicate, const EqRelation& relations)
 ```
 
 ### Selection
-A selection node receives from its child data from which some rows are filered out according to the predicates on it. Since Selection only remove some rows, the columns are not affected, which means the input columns are the same as output columns.
+A selection node receives from its child tuples, some rows of which are filered out based on the predicates of the Selection. Since Selection only remove some rows without adding new or removing existing columns, so the output columns remain the same as input ones.
 #### Pull up
 <img width="640" alt="image" src="https://github.com/Charles-1791/database_knowledge/assets/89259555/27f11e5d-1185-44b6-a522-cc1fc90beae1">
 
-As a 'filter node', a selection node always has a predicate, which could be converted into CNF(conjunctive normal form: https://en.wikipedia.org/wiki/Conjunctive_normal_form). For each clause in the CNF, we check whether it is of the form 'col1 = col2', if so, we find a pair of equivalent columns <col1, col2>, which is added to the 'relation' field of the PredicateSummary returned from child node; else, we consider the clause a normal predicate and simply move it into 'conditions'.
+As a 'filter node', a selection node could have one or multiple predicates, each of which could be converted into CNF(conjunctive normal form: https://en.wikipedia.org/wiki/Conjunctive_normal_form). For each clause in a CNF, check whether it owns the form 'col1 = col2', if so, we find a pair of equivalent columns <col1, col2>, which is added to the 'relations'.  field of the PredicateSummary returned from child node; else, we consider the clause a normal predicate and simply move it into 'conditions'.
 
 #### Push down
 In push down phase, selection recieved from its father a summary, which contains the predicates the current node used to have. Since selection node must have a child, to which we could directly send the summary.
@@ -368,10 +368,19 @@ Following the steps for relation, predicate #2 = #3 would be generated and sent 
 To sum up, we check all predicates stored in summary_down.conditions, if we find an equivalent one in summary_up.conditions based on summary_down.relation, we remove it.
 
 ### Aggregation
-An aggregation node firstly divides the rows into several groups based on the group by clause; in each group, the aggregate functions 'combines' or 'merge' the expression(specified in select clause) results for all rows into a single tuple. For instance, for query:
+An aggregation node divides the rows into several groups based on the group-by clause; in each group, the aggregate functions 'combines' or 'merge' the expression(specified in select clause) results for all rows into a single tuple. For instance, for query:
 
 > select a, b, sum(c+d), avg(a-b), max(e) from t group by a + b
 
-Aggregation calculates the value a, b, c+d, a-b, e, a+b for each row, then it splits tuples from child into groups based on the value of a+b. After that, in one group, the sum, average and maximum is evaluated before a single row is outputed. Rows reported by groups are stacked up as the final output. 
+Aggregation calculates the value a, b, c+d, a-b, e, a+b for each row, then it splits tuples into groups based on the value of a+b. After that, in one group, the sum, average and maximum is evaluated before a result tuple is outputed. 
 
-Similar to projection, aggregation could generate new columns, such as sum(c+d), it may also erase some columns, like column c, d, e. Similar to projection, we de 
+Aggregation generates new columns, such as sum(c+d), and could also erase some columns, like column c, d, e. We can reuse the logic of Projection for pull up and pushdown.
+
+#### Join
+Join has the most complicated logic of pull up and push down for two child nodes are involved. Let's start with the simplest Inner Join.
+
+##### Inner Join
+
+
+
+
