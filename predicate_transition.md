@@ -220,11 +220,11 @@ func TryToConvert(const expression.Expr& predicate, const EqRelation& relations)
 ```
 
 ### Selection
-A selection node receives from its child tuples, some rows of which are filered out based on the predicates of the Selection. Since Selection only remove some rows without adding new or removing existing columns, so the output columns remain the same as input ones.
+A selection node receives from its child tuples, some rows of which are filered out based on the predicates of the Selection. Since Selection only remove some rows without adding or removing columns, it returns the same columns as the input ones.
 #### Pull up
 <img width="640" alt="image" src="https://github.com/Charles-1791/database_knowledge/assets/89259555/27f11e5d-1185-44b6-a522-cc1fc90beae1">
 
-As a 'filter node', a selection node could have one or multiple predicates, each of which could be converted into CNF(conjunctive normal form: https://en.wikipedia.org/wiki/Conjunctive_normal_form). For each clause in a CNF, check whether it owns the form 'col1 = col2', if so, we find a pair of equivalent columns <col1, col2>, which is added to the 'relations'.  field of the PredicateSummary returned from child node; else, we consider the clause a normal predicate and simply move it into 'conditions'.
+As a 'filter node', a selection node could have one or multiple predicates. We convert each of them into CNF(conjunctive normal form: https://en.wikipedia.org/wiki/Conjunctive_normal_form), and for each clause in a CNF, we check whether it owns the form 'col1 = col2'. If so, we have found a pair of equivalent columns <col1, col2>. We check whether these two columns are in the same equivalent set (check )   which is added to the 'relations'.  field of the PredicateSummary returned from child node; else, we consider the clause a normal predicate and simply move it into 'conditions'.
 
 #### Push down
 In push down phase, selection recieved from its father a summary, which contains the predicates the current node used to have. Since selection node must have a child, to which we could directly send the summary.
