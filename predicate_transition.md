@@ -1,4 +1,7 @@
 # Predicate transition
+## Origin
+These are the notes I made while working on a project(introduce predicate transition to our query optimizer) at my job.
+
 ## Introduction
 When receiving a query, the database parses it and create an abstract syntax tree(AST), based on which an execution plan is then generated. 
 
