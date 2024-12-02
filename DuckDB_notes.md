@@ -1,3 +1,5 @@
+
+![image](https://github.com/user-attachments/assets/db71ea75-1622-4c93-a521-8113b587560d)
 ## CatalogEntry
 ```
 class CatalogEntry {
@@ -48,6 +50,8 @@ private:
 The table entry saves its data in the field **storage** with type **DataTable**.
 
 ## DataTable
+![image](https://github.com/user-attachments/assets/1aeb6425-8880-4f03-af61-a229dfbc4d64)
+
 ```
 private:
 	//! The table info
